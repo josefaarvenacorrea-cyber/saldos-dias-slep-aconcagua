@@ -72,6 +72,8 @@ function urlBaseDeDatos(): string | undefined {
   return clave ? env[clave] : undefined;
 }
 
+const ESQUEMA_PROPIO = 'saldos_dias';
+
 type Global = typeof globalThis & { __motorSaldos?: Promise<Motor> };
 
 async function crearMotor(): Promise<Motor> {
@@ -79,10 +81,17 @@ async function crearMotor(): Promise<Motor> {
   let motor: Motor;
   if (url) {
     const sql = neon(url);
+    // La base de Neon puede estar compartida con otras plataformas: todas las tablas de esta
+    // viven en su propio esquema para no mezclarse con tablas del mismo nombre.
+    await sql.query(`create schema if not exists ${ESQUEMA_PROPIO}`);
+    const fijarEsquema = () => sql.query(`set local search_path to ${ESQUEMA_PROPIO}`);
     motor = {
-      consulta: async (t, p = []) => (await sql.query(t, p)) as Fila[],
+      consulta: async (t, p = []) => {
+        const [, filas] = await sql.transaction([fijarEsquema(), sql.query(t, p)]);
+        return filas as Fila[];
+      },
       transaccion: async (pasos) => {
-        await sql.transaction(pasos.map((s) => sql.query(s.texto, s.params ?? [])));
+        await sql.transaction([fijarEsquema(), ...pasos.map((s) => sql.query(s.texto, s.params ?? []))]);
       },
     };
   } else {
