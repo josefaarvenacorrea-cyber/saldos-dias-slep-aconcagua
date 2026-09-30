@@ -1,0 +1,21 @@
+# dependencias y compilación
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# entorno y datos locales (nunca subir datos personales)
+.env*
+!.env.example
+.datos-locales/
+.datos-prueba/
+*.xlsx
+*.xls
+*.csv
+
+# sistema
+.DS_Store
+Thumbs.db
+.vercel
