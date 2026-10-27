@@ -16,6 +16,8 @@ Roboto / Roboto Slab, botones, alertas, tablas) con los logos del SLEP Aconcagua
    escritos, descuadres entre hojas, saldos negativos, fechas raras y personas sin correo. Cada alerta
    indica la hoja y la fila del Excel. Se pueden descargar en Excel.
 4. Si se subió un archivo equivocado: en **Cargar datos → Historial** se puede volver a una versión anterior.
+5. En **Feriado por vencer** está la lista de quienes perderían feriado legal acumulado si no lo toman este año
+   (con su correo y si ya ingresaron a la plataforma), descargable en Excel para hacer seguimiento.
 
 En **Funcionarios** se ve a cada persona tal como ella ve su información, y se puede restablecer su
 contraseña, desbloquearla, deshabilitar la cuenta o cambiar su correo de ingreso.
@@ -26,6 +28,10 @@ contraseña, desbloquearla, deshabilitar la cuenta o cambiar su correo de ingres
   (misma persona, tipo, fecha de inicio y cantidad).
 - Días administrativos: saldo inicial de la hoja SALDOS. Feriado legal: días acumulados del año anterior
   + días de anualidad. Descanso complementario: horas reconocidas (resoluciones REX y meses) − horas usadas.
+- **Feriado legal por vencer**: los días acumulados de años anteriores no se pueden postergar otra vez; solo los del
+  año en curso se pueden pasar al año siguiente. Lo usado en el año se descuenta primero de los acumulados, así que
+  se pierde `acumulados − usados` (si es mayor que cero). Quien tenga días por vencer ve un aviso en Mis días con
+  solo esa cantidad y el plazo (31 de diciembre). El aviso solo aparece con la base del año en curso.
 - Las solicitudes se asignan a la persona por el **número de RUT** (sin dígito verificador), así un dígito
   mal escrito no deja una solicitud fuera. Igual se avisa para corregir el Excel.
 - Los días se reparten en días hábiles (lunes a viernes, sin feriados) para el calendario.

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Ficha } from '@/lib/datos';
-import { fechaCorta, fechaHoraChile } from '@/lib/fechas';
+import { anioActualChile, fechaCorta, fechaHoraChile } from '@/lib/fechas';
+import { feriadoPorVencer } from '@/lib/feriado';
 import * as f from '@/lib/formato';
 import { formatearRut } from '@/lib/rut';
 import type { Solicitud, TipoSolicitud } from '@/lib/tipos';
@@ -87,6 +88,8 @@ export function VistaFicha({ ficha, filtro, rutaBase }: { ficha: Ficha; filtro: 
     .filter((s) => actual === 'todas' || s.tipo === actual)
     .sort((a, b) => (b.inicio ?? '').localeCompare(a.inicio ?? '') || b.fila - a.fila);
   const pendientes = todas.filter((s) => s.comentario && /pendiente|falta/i.test(s.comentario)).length;
+  // Solo con la base del año en curso: con una base antigua el plazo ya pasó.
+  const porVencer = dias && dias.anio === anioActualChile() ? feriadoPorVencer(dias.feriadoLegal) : 0;
 
   return (
     <>
@@ -94,6 +97,16 @@ export function VistaFicha({ ficha, filtro, rutaBase }: { ficha: Ficha; filtro: 
         <p className="sub">
           Información actualizada al <strong>{fechaHoraChile(ficha.actualizado)}</strong>.
         </p>
+      ) : null}
+
+      {porVencer > 0 ? (
+        <Alerta tipo="advertencia" titulo={porVencer === 1 ? 'Tienes 1 día de feriado legal que vence este año' : `Tienes ${f.dias(porVencer)} de feriado legal que vencen este año`}>
+          <p>
+            {porVencer === 1
+              ? `Es un día acumulado de años anteriores y no se puede postergar. Si no lo tomas antes del 31 de diciembre de ${anio}, lo perderás.`
+              : `Son días acumulados de años anteriores y no se pueden postergar. Si no los tomas antes del 31 de diciembre de ${anio}, los perderás.`}
+          </p>
+        </Alerta>
       ) : null}
 
       <div className="grilla grilla-3 seccion">

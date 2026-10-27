@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Alerta } from '@/componentes/Alerta';
-import { alertasActivas, alertasDeCuentas, cargasActivas, listaFuncionarios, NOMBRE_ARCHIVO } from '@/lib/datos';
-import { fechaHoraChile } from '@/lib/fechas';
+import { alertasActivas, alertasDeCuentas, cargasActivas, feriadoPorVencerLista, listaFuncionarios, NOMBRE_ARCHIVO } from '@/lib/datos';
+import { anioActualChile, fechaHoraChile } from '@/lib/fechas';
+import * as f from '@/lib/formato';
 import { requerirAdmin } from '@/lib/sesion';
 import type { TipoArchivo } from '@/lib/tipos';
 
@@ -11,7 +12,8 @@ export const metadata: Metadata = { title: 'Administración' };
 export default async function Resumen({ searchParams }: { searchParams: Promise<{ clave?: string }> }) {
   await requerirAdmin();
   const { clave } = await searchParams;
-  const [cargas, funcionarios, alertas, cuentas] = await Promise.all([cargasActivas(), listaFuncionarios(), alertasActivas(), alertasDeCuentas()]);
+  const [cargas, funcionarios, alertas, cuentas, feriado] = await Promise.all([cargasActivas(), listaFuncionarios(), alertasActivas(), alertasDeCuentas(), feriadoPorVencerLista()]);
+  const hayFeriadoPorVencer = feriado.anio === anioActualChile() && feriado.personas.length > 0;
   const vigentes = funcionarios.filter((f) => f.vigente);
   const conCorreo = vigentes.filter((f) => f.email);
   const ingresaron = vigentes.filter((f) => f.ultimo_ingreso);
@@ -57,6 +59,14 @@ export default async function Resumen({ searchParams }: { searchParams: Promise<
             <Link href="/admin/alertas?nivel=alta">alertas de prioridad alta</Link>
           </span>
         </div>
+        {hayFeriadoPorVencer ? (
+          <div className="cifra">
+            <strong>{feriado.personas.length}</strong>
+            <span>
+              <Link href="/admin/feriado">perderían {f.dias(feriado.total)} de feriado legal</Link>
+            </span>
+          </div>
+        ) : null}
       </div>
 
       <h2>Datos publicados</h2>

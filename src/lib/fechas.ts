@@ -74,6 +74,11 @@ export function diasHabilesEntre(desde: string, hasta: string): number {
   return n;
 }
 
+/** Días hábiles que quedan en el año, contando desde el día siguiente a `hoy`. */
+export function diasHabilesRestantesDelAnio(hoy: string): number {
+  return diasHabilesEntre(sumarDias(hoy, 1), `${hoy.slice(0, 4)}-12-31`);
+}
+
 const NOMBRE_DIA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 export const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
@@ -114,4 +119,8 @@ export function fechaHoraChile(valor: Date | string): string {
 export function hoyChile(): string {
   const partes = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   return partes;
+}
+
+export function anioActualChile(): number {
+  return Number(hoyChile().slice(0, 4));
 }

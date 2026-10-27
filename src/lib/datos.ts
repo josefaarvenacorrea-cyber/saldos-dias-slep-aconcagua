@@ -1,5 +1,6 @@
 import 'server-only';
 import { auditar, consulta, transaccion } from './db.ts';
+import { feriadoPorVencer } from './feriado.ts';
 import { ADMIN_EMAIL } from './sesion.ts';
 import type { Alerta, FichaDescansos, FichaDias, FichaDotacion, ResultadoLectura, TipoArchivo } from './tipos.ts';
 
@@ -201,6 +202,63 @@ export async function listaFuncionarios(): Promise<FilaFuncionario[]> {
     left join (select r.rut, r.datos from registros r join cargas c on c.id = r.carga_id and c.activa and c.tipo = 'descansos') s on s.rut = u.rut
     where u.rol = 'funcionario'
     order by u.vigente desc, u.nombre`);
+}
+
+export interface FilaPorVencer {
+  id: number | null;
+  rutTexto: string;
+  nombre: string;
+  area: string;
+  email: string | null;
+  ultimoIngreso: string | Date | null;
+  acumulado: number;
+  usados: number;
+  porVencer: number;
+  /** Detalle uso y SALDOS no suman lo mismo: el cálculo usa Detalle uso, conviene revisarlo. */
+  descuadre: boolean;
+}
+
+export interface FeriadoPorVencer {
+  /** Año de la Base de Saldos de Días publicada (null si no hay). */
+  anio: number | null;
+  conAcumulados: number;
+  yaLosUsaron: number;
+  total: number;
+  personas: FilaPorVencer[];
+}
+
+/** Quiénes perderían días de feriado legal acumulados de años anteriores si no los usan este año. */
+export async function feriadoPorVencerLista(): Promise<FeriadoPorVencer> {
+  const filas = await consulta<{ datos: Pick<FichaDias, 'rutTexto' | 'nombre' | 'area' | 'anio' | 'feriadoLegal'>; id: number | null; email: string | null; ultimo_ingreso: string | Date | null }>(
+    `select jsonb_build_object('rutTexto', r.datos->'rutTexto', 'nombre', r.datos->'nombre', 'area', r.datos->'area', 'anio', r.datos->'anio', 'feriadoLegal', r.datos->'feriadoLegal') as datos,
+            u.id, u.email, u.ultimo_ingreso
+     from registros r
+     join cargas c on c.id = r.carga_id and c.activa and c.tipo = 'dias'
+     left join usuarios u on u.rut = r.rut and u.rol = 'funcionario'`,
+  );
+  const conAcumulados = filas.filter((x) => x.datos.feriadoLegal.acumuladoAnterior > 0);
+  const personas = conAcumulados
+    .map(({ datos: d, id, email, ultimo_ingreso }) => ({
+      id,
+      rutTexto: d.rutTexto,
+      nombre: d.nombre,
+      area: d.area,
+      email,
+      ultimoIngreso: ultimo_ingreso,
+      acumulado: d.feriadoLegal.acumuladoAnterior,
+      usados: d.feriadoLegal.usados,
+      porVencer: feriadoPorVencer(d.feriadoLegal),
+      descuadre: Math.abs(d.feriadoLegal.usados - d.feriadoLegal.usadosSegunResumen) > 1e-9,
+    }))
+    .filter((p) => p.porVencer > 0)
+    .sort((a, b) => b.porVencer - a.porVencer || a.nombre.localeCompare(b.nombre, 'es'));
+  return {
+    anio: filas[0]?.datos.anio ?? null,
+    conAcumulados: conAcumulados.length,
+    yaLosUsaron: conAcumulados.length - personas.length,
+    total: Math.round(personas.reduce((acc, p) => acc + p.porVencer, 0) * 100) / 100,
+    personas,
+  };
 }
 
 /** Alertas que cruzan archivos: personas con saldos que no pueden ingresar. */

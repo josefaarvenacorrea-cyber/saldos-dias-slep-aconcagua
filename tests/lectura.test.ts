@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dvDe, formatearRut, numeroRut, rutValido, claveInicialDe } from '../src/lib/rut.ts';
-import { repartirDiasHabiles, diasHabilesEntre } from '../src/lib/fechas.ts';
+import { repartirDiasHabiles, diasHabilesEntre, diasHabilesRestantesDelAnio } from '../src/lib/fechas.ts';
+import { feriadoPorVencer } from '../src/lib/feriado.ts';
 import { horas, numero } from '../src/lib/formato.ts';
 import { leerDias } from '../src/lib/excel/dias.ts';
 import { leerDescansos } from '../src/lib/excel/descansos.ts';
@@ -47,6 +48,24 @@ test('Días: saldo = inicial − detalle, sin contar repetidas, con RUT de dígi
   assert.equal(r.personas['15555555'].feriadoLegal.usados, 3); // dígito corrido igual se asigna
   assert.ok(r.alertas.some((a) => a.alerta === 'RUT-DV distinto al de SALDOS'));
   assert.ok(r.alertas.some((a) => a.alerta === 'Solicitud repetida'));
+});
+
+test('Feriado legal por vencer: lo usado se descuenta primero de los días acumulados', async () => {
+  const r = await leerDias(await readFile('.datos-prueba/dias-prueba.xlsx'));
+  // Las tres personas tienen 10 días acumulados y 15 del año.
+  assert.equal(feriadoPorVencer(r.personas['11111111'].feriadoLegal), 5); // usó 5
+  assert.equal(feriadoPorVencer(r.personas['22222222'].feriadoLegal), 10); // no ha usado
+  assert.equal(feriadoPorVencer(r.personas['15555555'].feriadoLegal), 7); // usó 3
+  const base = { acumuladoAnterior: 10, anualidad: 15, inicial: 25, usadosSegunResumen: 0 };
+  assert.equal(feriadoPorVencer({ ...base, usados: 12, saldo: 13 }), 0); // ya usó los acumulados: los del año se pueden postergar
+  assert.equal(feriadoPorVencer({ ...base, usados: 7.5, saldo: 17.5 }), 2.5);
+  assert.equal(feriadoPorVencer({ ...base, acumuladoAnterior: 0, usados: 0, saldo: 15 }), 0);
+});
+
+test('Días hábiles que quedan en el año, desde mañana', () => {
+  assert.equal(diasHabilesRestantesDelAnio('2026-10-27'), 45);
+  assert.equal(diasHabilesRestantesDelAnio('2026-12-30'), 1);
+  assert.equal(diasHabilesRestantesDelAnio('2026-12-31'), 0);
 });
 
 test('Descansos: horas reconocidas con vencimiento y saldo', async () => {
