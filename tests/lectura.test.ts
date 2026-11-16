@@ -83,3 +83,14 @@ test('Dotación: correos y personas sin correo', async () => {
   assert.equal(r.resumen.conCorreo, 2);
   assert.equal(r.personas['11111111'].correoInstitucional, 'ana.prueba@ejemplo.cl');
 });
+
+test('Aviso de postergación: solo antes y durante el proceso', async () => {
+  const { etapaPostergacion } = await import('../src/lib/postergacion.ts');
+  assert.equal(etapaPostergacion('2026-10-01'), null);
+  assert.equal(etapaPostergacion('2026-11-16'), 'proximo');
+  assert.equal(etapaPostergacion('2026-11-23'), 'abierto');
+  assert.equal(etapaPostergacion('2026-12-05'), 'abierto');
+  assert.equal(etapaPostergacion('2026-12-06'), 'terminado');
+  assert.equal(etapaPostergacion('2026-12-11'), 'terminado');
+  assert.equal(etapaPostergacion('2026-12-12'), null);
+});

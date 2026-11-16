@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import type { Ficha } from '@/lib/datos';
-import { anioActualChile, fechaCorta, fechaHoraChile } from '@/lib/fechas';
+import { anioActualChile, fechaCorta, fechaHoraChile, hoyChile, MESES } from '@/lib/fechas';
 import { feriadoPorVencer } from '@/lib/feriado';
+import { etapaPostergacion, FORMULARIOS, PROCESO_POSTERGACION, type EtapaPostergacion } from '@/lib/postergacion';
 import * as f from '@/lib/formato';
 import { formatearRut } from '@/lib/rut';
 import type { Solicitud, TipoSolicitud } from '@/lib/tipos';
@@ -69,6 +70,72 @@ function TarjetaSaldo(props: {
   );
 }
 
+/** "2026-11-23" → "23 de noviembre" */
+const diaYMes = (iso: string) => `${Number(iso.slice(8, 10))} de ${MESES[Number(iso.slice(5, 7)) - 1]}`;
+
+function AvisoPostergacion({ etapa }: { etapa: EtapaPostergacion }) {
+  const p = PROCESO_POSTERGACION;
+  const postergacion = FORMULARIOS[0];
+  if (etapa === 'terminado') {
+    return (
+      <Alerta tipo="info" titulo={`El proceso de postergación de feriado legal terminó el ${diaYMes(p.fin)}`}>
+        <p>
+          El plazo para solicitar postergar tus días de feriado legal de {p.anioAPostergar} para {p.anioDestino} fue entre el {diaYMes(p.inicio)} y el {diaYMes(p.fin)}.
+        </p>
+        <p>
+          <strong>
+            Los días acumulados de {p.anioAcumulado} no se pueden postergar para {p.anioDestino}: debes tomarlos antes del 31 de diciembre para no perderlos.
+          </strong>
+        </p>
+      </Alerta>
+    );
+  }
+  return (
+    <Alerta
+      tipo={etapa === 'abierto' ? 'advertencia' : 'info'}
+      titulo={
+        etapa === 'abierto'
+          ? `Proceso de postergación de feriado legal: hasta el ${diaYMes(p.fin)}`
+          : `Del ${diaYMes(p.inicio)} al ${diaYMes(p.fin)}: proceso de postergación de feriado legal`
+      }
+    >
+      <p>
+        {etapa === 'abierto' ? 'Hasta el ' + diaYMes(p.fin) : `Entre el ${diaYMes(p.inicio)} y el ${diaYMes(p.fin)}`} puedes solicitar postergar tus días de feriado legal de{' '}
+        {p.anioAPostergar} para {p.anioDestino}. Descarga el formulario, complétalo con tu jefatura y envíalo firmado a <a href={`mailto:${CORREO_CONTACTO}`}>{CORREO_CONTACTO}</a>.
+      </p>
+      <p>
+        <strong>
+          Los días acumulados de {p.anioAcumulado} no se pueden postergar para {p.anioDestino}: debes tomarlos este año para no perderlos.
+        </strong>
+      </p>
+      <p>
+        <a className="boton boton-secundario boton-chico" href={postergacion.archivo} download>
+          Descargar formulario de postergación (Word)
+        </a>
+      </p>
+    </Alerta>
+  );
+}
+
+function Formularios() {
+  return (
+    <section className="seccion" aria-labelledby="titulo-formularios">
+      <h2 id="titulo-formularios">Formularios para descargar</h2>
+      <div className="grilla grilla-2">
+        {FORMULARIOS.map((x) => (
+          <div key={x.archivo} className="tarjeta">
+            <h3 style={{ marginBottom: 4 }}>{x.titulo}</h3>
+            <p className="sub">{x.descripcion}</p>
+            <a className="boton boton-secundario boton-chico" href={x.archivo} download>
+              Descargar (Word, {x.peso})
+            </a>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function SinDatos({ titulo, texto }: { titulo: string; texto: string }) {
   return (
     <section className="tarjeta saldo" aria-label={titulo} style={{ borderTopColor: 'var(--gris-20)' }}>
@@ -90,6 +157,7 @@ export function VistaFicha({ ficha, filtro, rutaBase }: { ficha: Ficha; filtro: 
   const pendientes = todas.filter((s) => s.comentario && /pendiente|falta/i.test(s.comentario)).length;
   // Solo con la base del año en curso: con una base antigua el plazo ya pasó.
   const porVencer = dias && dias.anio === anioActualChile() ? feriadoPorVencer(dias.feriadoLegal) : 0;
+  const etapa = etapaPostergacion(hoyChile());
 
   return (
     <>
@@ -98,6 +166,8 @@ export function VistaFicha({ ficha, filtro, rutaBase }: { ficha: Ficha; filtro: 
           Información actualizada al <strong>{fechaHoraChile(ficha.actualizado)}</strong>.
         </p>
       ) : null}
+
+      {etapa ? <AvisoPostergacion etapa={etapa} /> : null}
 
       {porVencer > 0 ? (
         <Alerta tipo="advertencia" titulo={porVencer === 1 ? 'Tienes 1 día de feriado legal que vence este año' : `Tienes ${f.dias(porVencer)} de feriado legal que vencen este año`}>
@@ -182,6 +252,8 @@ export function VistaFicha({ ficha, filtro, rutaBase }: { ficha: Ficha; filtro: 
           <p>Revisa el detalle en el historial (por ejemplo, una solicitud sin firmar).</p>
         </Alerta>
       ) : null}
+
+      <Formularios />
 
       <section className="seccion" aria-labelledby="titulo-calendario">
         <h2 id="titulo-calendario">Calendario {anio}</h2>
