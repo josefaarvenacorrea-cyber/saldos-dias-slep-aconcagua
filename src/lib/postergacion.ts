@@ -34,7 +34,7 @@ export const FORMULARIOS = [
     archivo: '/formularios/formulario-postergacion-feriado-legal.docx',
     titulo: 'Formulario de postergación de feriado legal',
     descripcion: 'Para pedir postergar los días de feriado legal del año al año siguiente.',
-    peso: '62 KB',
+    peso: '69 KB',
   },
   {
     archivo: '/formularios/formulario-solicitud-permisos.docx',
