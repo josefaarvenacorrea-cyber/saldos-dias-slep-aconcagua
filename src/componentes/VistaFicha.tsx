@@ -101,16 +101,19 @@ function AvisoPostergacion({ etapa }: { etapa: EtapaPostergacion }) {
     >
       <p>
         {etapa === 'abierto' ? 'Hasta el ' + diaYMes(p.fin) : `Entre el ${diaYMes(p.inicio)} y el ${diaYMes(p.fin)}`} puedes solicitar postergar tus días de feriado legal de{' '}
-        {p.anioAPostergar} para {p.anioDestino}. Descarga el formulario, complétalo con tu jefatura y envíalo firmado a <a href={`mailto:${CORREO_CONTACTO}`}>{CORREO_CONTACTO}</a>.
+        {p.anioAPostergar} para {p.anioDestino}. El formulario sale con tus datos y tus días ya escritos: revísalo, imprímelo, fírmalo con tu jefatura y envíalo a <a href={`mailto:${CORREO_CONTACTO}`}>{CORREO_CONTACTO}</a>.
       </p>
       <p>
         <strong>
           Los días acumulados de {p.anioAcumulado} no se pueden postergar para {p.anioDestino}: debes tomarlos este año para no perderlos.
         </strong>
       </p>
-      <p>
+      <p className="acciones-aviso">
+        <Link className="boton boton-chico" href="/mis-dias/postergacion">
+          Abrir mi formulario con mis datos
+        </Link>
         <a className="boton boton-secundario boton-chico" href={postergacion.archivo} download>
-          Descargar formulario de postergación (Word)
+          Descargar formulario en blanco (Word)
         </a>
       </p>
     </Alerta>

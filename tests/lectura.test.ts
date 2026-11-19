@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dvDe, formatearRut, numeroRut, rutValido, claveInicialDe } from '../src/lib/rut.ts';
 import { repartirDiasHabiles, diasHabilesEntre, diasHabilesRestantesDelAnio } from '../src/lib/fechas.ts';
-import { feriadoPorVencer } from '../src/lib/feriado.ts';
+import { feriadoPorVencer, feriadoPostergable } from '../src/lib/feriado.ts';
 import { horas, numero } from '../src/lib/formato.ts';
 import { leerDias } from '../src/lib/excel/dias.ts';
 import { leerDescansos } from '../src/lib/excel/descansos.ts';
@@ -62,6 +62,23 @@ test('Feriado legal por vencer: lo usado se descuenta primero de los días acumu
   assert.equal(feriadoPorVencer({ ...base, acumuladoAnterior: 0, usados: 0, saldo: 15 }), 0);
 });
 
+test('Feriado legal postergable: solo los días del año en curso, nunca los acumulados', () => {
+  const base = { acumuladoAnterior: 10, anualidad: 15, inicial: 25, usadosSegunResumen: 0 };
+  // Sin usar nada: se posterga la anualidad completa y los 10 acumulados quedan por vencer.
+  assert.equal(feriadoPostergable({ ...base, usados: 0, saldo: 25 }), 15);
+  // Ya usó los acumulados y 2 de la anualidad: todo el saldo es postergable.
+  assert.equal(feriadoPostergable({ ...base, usados: 12, saldo: 13 }), 13);
+  // Medios días: usó 7,5, quedan 2,5 acumulados por vencer y 15 postergables.
+  assert.equal(feriadoPostergable({ ...base, usados: 7.5, saldo: 17.5 }), 15);
+  // Sin acumulados: todo el saldo se puede postergar.
+  assert.equal(feriadoPostergable({ ...base, acumuladoAnterior: 0, usados: 0, saldo: 15 }), 15);
+  // Sin saldo: no hay nada que postergar.
+  assert.equal(feriadoPostergable({ ...base, usados: 25, saldo: 0 }), 0);
+  // Postergable + por vencer siempre suman el saldo.
+  const caso = { ...base, usados: 3, saldo: 22 };
+  assert.equal(feriadoPostergable(caso) + feriadoPorVencer(caso), caso.saldo);
+});
+
 test('Días hábiles que quedan en el año, desde mañana', () => {
   assert.equal(diasHabilesRestantesDelAnio('2026-10-27'), 45);
   assert.equal(diasHabilesRestantesDelAnio('2026-12-30'), 1);
@@ -87,7 +104,10 @@ test('Dotación: correos y personas sin correo', async () => {
 test('Aviso de postergación: solo antes y durante el proceso', async () => {
   const { etapaPostergacion } = await import('../src/lib/postergacion.ts');
   assert.equal(etapaPostergacion('2026-10-01'), null);
-  assert.equal(etapaPostergacion('2026-11-16'), 'proximo');
+  assert.equal(etapaPostergacion('2026-10-28'), null); // 22 días antes: todavía no se avisa
+  assert.equal(etapaPostergacion('2026-10-29'), 'proximo'); // 21 días antes: parte el aviso
+  assert.equal(etapaPostergacion('2026-11-18'), 'proximo');
+  assert.equal(etapaPostergacion('2026-11-19'), 'abierto');
   assert.equal(etapaPostergacion('2026-11-23'), 'abierto');
   assert.equal(etapaPostergacion('2026-12-05'), 'abierto');
   assert.equal(etapaPostergacion('2026-12-06'), 'terminado');

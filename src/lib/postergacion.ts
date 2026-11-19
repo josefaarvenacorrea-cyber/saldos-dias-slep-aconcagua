@@ -6,7 +6,7 @@ import { sumarDias } from './fechas.ts';
  * Cambiar estas fechas cada año.
  */
 export const PROCESO_POSTERGACION = {
-  inicio: '2026-11-23',
+  inicio: '2026-11-19',
   fin: '2026-12-05',
   /** Hasta cuándo se sigue mostrando el aviso (después del fin dice que el proceso terminó). */
   avisoHasta: '2026-12-11',
