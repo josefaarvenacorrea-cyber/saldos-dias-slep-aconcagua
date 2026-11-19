@@ -79,6 +79,38 @@ test('Feriado legal postergable: solo los días del año en curso, nunca los acu
   assert.equal(feriadoPostergable(caso) + feriadoPorVencer(caso), caso.saldo);
 });
 
+test('Jefaturas: se empareja el nombre escrito en la Dotación, aunque esté incompleto', async () => {
+  const { tokensNombre, resolverPorNombre } = await import('../src/lib/nombres.ts');
+
+  assert.deepEqual(tokensNombre('Ríos Soto, María José'), ['MARIA', 'JOSE', 'RIOS', 'SOTO']);
+  assert.deepEqual(tokensNombre('Alejandra de las Mercedes Meza Veas'), ['ALEJANDRA', 'MERCEDES', 'MEZA', 'VEAS']);
+
+  const personas = [
+    { rut: '11111111', nombre: 'Alejandra de las Mercedes Meza Veas' },
+    { rut: '22222222', nombre: 'Carlos Andrés Rivas Mena' },
+    { rut: '33333333', nombre: 'Carlos Ignacio Rivas Mena' },
+    { rut: '44444444', nombre: 'María José Ríos Soto' },
+  ];
+  const r = (nombre: string, propio = '99999999') => resolverPorNombre(nombre, propio, personas);
+
+  // Nombre incompleto, pero sin ninguna duda de quién es.
+  assert.deepEqual(r('Alejandra Meza Veas'), { rut: '11111111' });
+  assert.deepEqual(r('Alejandra Meza'), { rut: '11111111' });
+  // Con acentos, sin acentos y con el apellido primero da lo mismo.
+  assert.deepEqual(r('MEZA VEAS, ALEJANDRA'), { rut: '11111111' });
+  assert.deepEqual(r('Rios Soto Maria Jose'), { rut: '44444444' });
+  // Dos personas con el mismo apellido: no se adivina, se avisa.
+  assert.deepEqual(r('Rivas Mena'), { motivo: 'ambiguo' });
+  assert.deepEqual(r('Carlos Rivas Mena'), { motivo: 'ambiguo' });
+  // Con el segundo nombre ya se distingue.
+  assert.deepEqual(r('Carlos Andrés Rivas'), { rut: '22222222' });
+  // Una sola palabra nunca alcanza.
+  assert.deepEqual(r('Alejandra'), { motivo: 'muy_corto' });
+  // Nombre que no está en la Dotación, y jefatura de sí misma.
+  assert.deepEqual(r('Pedro Pérez Soto'), { motivo: 'no_existe' });
+  assert.deepEqual(r('Alejandra Meza Veas', '11111111'), { motivo: 'si_mismo' });
+});
+
 test('Días hábiles que quedan en el año, desde mañana', () => {
   assert.equal(diasHabilesRestantesDelAnio('2026-10-27'), 45);
   assert.equal(diasHabilesRestantesDelAnio('2026-12-30'), 1);

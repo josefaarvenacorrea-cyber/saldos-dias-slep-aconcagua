@@ -371,6 +371,40 @@ details.desplegable[open] > summary { border-bottom: 1px solid var(--gris-10); m
 
 .acciones-aviso { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
+/* Firma guardada en la cuenta: lienzo para dibujarla, subida y vista previa. */
+.pestanas { display: flex; gap: 4px; border-bottom: 1px solid var(--gris-10); margin: 20px 0 18px; }
+.pestana { font: inherit; font-size: 15px; font-weight: 700; background: none; border: none; padding: 10px 16px; cursor: pointer; color: var(--gris-40); border-bottom: 3px solid transparent; margin-bottom: -1px; }
+.pestana.activa { color: var(--primario); border-bottom-color: var(--primario); }
+.lienzo-firma { display: block; width: 100%; max-width: 520px; height: 170px; border: 1px dashed var(--gris-20, #cfd6dd); border-radius: var(--radio); background: #fff; touch-action: none; cursor: crosshair; }
+.zona-subida { border: 1px dashed var(--gris-20, #cfd6dd); border-radius: var(--radio); background: #fff; padding: 24px; max-width: 520px; display: grid; gap: 12px; justify-items: center; text-align: center; }
+.vista-firma { margin-top: 18px; max-width: 520px; border: 1px solid var(--gris-10); border-radius: var(--radio); padding: 14px; background: #fff; }
+.vista-firma img { display: block; max-height: 80px; max-width: 100%; }
+
+/* Pasos del trámite y confirmación antes de firmar. */
+.ruta-pasos { list-style: none; display: flex; flex-wrap: wrap; gap: 18px; padding: 0; margin: 0 0 20px; }
+.ruta-pasos li { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--gris-40); }
+.ruta-pasos li.actual { color: var(--primario); font-weight: 700; }
+.ruta-pasos li.listo { color: var(--exito, #17794a); }
+.ruta-punto { width: 10px; height: 10px; border-radius: 50%; background: currentColor; flex: none; }
+.lista-pasos { padding-left: 20px; display: grid; gap: 10px; }
+.lista-pasos li { line-height: 1.55; }
+.etiqueta-campo { display: block; font-weight: 700; margin-bottom: 8px; }
+.opciones { display: flex; gap: 8px; flex-wrap: wrap; }
+.opcion { font: inherit; font-size: 14px; font-weight: 600; background: #fff; border: 1px solid var(--gris-10); border-radius: var(--radio); padding: 10px 16px; cursor: pointer; color: inherit; }
+.opcion.activa { border-color: var(--primario); background: var(--primario); color: #fff; }
+.texto-legal { font-size: 14px; line-height: 1.6; background: #f6f9fc; border: 1px solid var(--gris-10); border-radius: var(--radio); padding: 14px 16px; }
+.confirmacion { border: 2px solid var(--primario); border-radius: var(--radio); padding: 18px; margin-top: 16px; background: #fff; }
+.confirmacion-titulo { font-size: 17px; font-weight: 700; margin: 0 0 10px; }
+.confirmacion-detalle { background: #f6f9fc; border-radius: var(--radio); padding: 12px 14px; font-size: 14px; line-height: 1.8; margin-bottom: 14px; }
+.confirmacion-aviso { font-size: 13px; line-height: 1.55; color: var(--gris-40); margin: 0 0 16px; }
+
+/* Bloque de autorización bajo cada firma del documento. */
+.fp-acto { display: block; font-size: 8.4px; line-height: 1.45; color: #2a3a47; text-align: left; margin-top: 5px; border-top: 1px solid #c6d4e0; padding-top: 4px; }
+.fp-acto strong { display: block; color: #17794a; letter-spacing: .04em; font-size: 8.2px; }
+.fp-codigo { font-family: Consolas, ui-monospace, monospace; font-weight: 700; color: var(--fp-azul); }
+.fp-linea img { max-height: 46px; max-width: 190px; }
+.fp-verificacion { font-size: 8.4px; color: #5b6670; line-height: 1.5; border-top: 1px solid #e3eaf0; margin-top: 14px; padding-top: 7px; }
+
 /* Formulario de postergación de feriado legal, prellenado y listo para imprimir. */
 .fp-controles { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; margin: 16px 0 8px; }
 .fp-controles .campo { margin-bottom: 0; min-width: 220px; }
@@ -403,7 +437,7 @@ details.desplegable[open] > summary { border-bottom: 1px solid var(--gris-10); m
 .fp-declara { font-size: 10.5px; line-height: 1.5; text-align: justify; }
 .fp-declara strong { color: var(--fp-azul); }
 .fp-firma { width: 280px; vertical-align: bottom; text-align: center; padding-bottom: 7px; }
-.fp-linea { display: block; border-bottom: 1.3px solid var(--fp-azul); height: 50px; margin-bottom: 4px; }
+.fp-linea { display: flex; align-items: flex-end; justify-content: center; border-bottom: 1.3px solid var(--fp-azul); height: 50px; margin-bottom: 4px; }
 .fp-pie-firma { display: block; font-size: 11px; font-weight: 800; color: var(--fp-azul); }
 .fp-pie {
   margin-top: 18px;

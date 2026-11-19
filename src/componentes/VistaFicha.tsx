@@ -75,7 +75,6 @@ const diaYMes = (iso: string) => `${Number(iso.slice(8, 10))} de ${MESES[Number(
 
 function AvisoPostergacion({ etapa }: { etapa: EtapaPostergacion }) {
   const p = PROCESO_POSTERGACION;
-  const postergacion = FORMULARIOS[0];
   if (etapa === 'terminado') {
     return (
       <Alerta tipo="info" titulo={`El proceso de postergación de feriado legal terminó el ${diaYMes(p.fin)}`}>
@@ -101,20 +100,18 @@ function AvisoPostergacion({ etapa }: { etapa: EtapaPostergacion }) {
     >
       <p>
         {etapa === 'abierto' ? 'Hasta el ' + diaYMes(p.fin) : `Entre el ${diaYMes(p.inicio)} y el ${diaYMes(p.fin)}`} puedes solicitar postergar tus días de feriado legal de{' '}
-        {p.anioAPostergar} para {p.anioDestino}. El formulario sale con tus datos y tus días ya escritos: revísalo, imprímelo, fírmalo con tu jefatura y envíalo a <a href={`mailto:${CORREO_CONTACTO}`}>{CORREO_CONTACTO}</a>.
+        {p.anioAPostergar} para {p.anioDestino}. El trámite se hace completo aquí en la plataforma: tú lo inicias, lo
+        responde tu jefatura y vuelve a ti para que lo aceptes. No hay que imprimir ni enviar nada.
       </p>
       <p>
         <strong>
           Los días acumulados de {p.anioAcumulado} no se pueden postergar para {p.anioDestino}: debes tomarlos este año para no perderlos.
         </strong>
       </p>
-      <p className="acciones-aviso">
+      <p>
         <Link className="boton boton-chico" href="/mis-dias/postergacion">
-          Abrir mi formulario con mis datos
+          {etapa === 'abierto' ? 'Postergar mi feriado legal' : 'Ver cómo funciona el trámite'}
         </Link>
-        <a className="boton boton-secundario boton-chico" href={postergacion.archivo} download>
-          Descargar formulario en blanco (Word)
-        </a>
       </p>
     </Alerta>
   );
