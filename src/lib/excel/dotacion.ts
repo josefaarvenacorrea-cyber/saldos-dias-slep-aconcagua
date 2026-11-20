@@ -10,6 +10,18 @@ function correo(v: unknown): string | null {
 }
 
 /**
+ * Si el RUT-DV escrito no es válido, prueba con las columnas RUT y DV de la misma fila
+ * (y con la columna RUT cuando trae el dígito pegado al final). Devuelve el primero válido.
+ */
+function rutValidoDeLaFila(escrito: string, columnaRut: string, columnaDv: string): string | null {
+  if (rutValido(escrito)) return null;
+  const numero = columnaRut.replace(/\D/g, '');
+  const dv = columnaDv.trim().toUpperCase();
+  const candidatos = [numero && dv ? `${numero}-${dv}` : '', numero.length >= 8 ? `${numero.slice(0, -1)}-${numero.slice(-1)}` : ''];
+  return candidatos.find((x) => x && rutValido(x)) ?? null;
+}
+
+/**
  * Lee la Dotación efectiva. Solo se guardan los datos laborales que se muestran en la plataforma
  * y los correos para ingresar; se ignoran columnas como sexo u origen.
  */
@@ -27,6 +39,7 @@ export async function leerDotacion(buffer: ArrayBuffer | Uint8Array): Promise<Re
   const c = {
     rutDv: columnaOpcional(m, 'RUT-DV'),
     rut: columnaOpcional(m, 'RUT'),
+    dv: columnaOpcional(m, 'DV'),
     nombre: columnaOpcional(m, 'NOMBRE COMPLETO')!,
     area: columnaOpcional(m, 'ÁREA/SUBDIRECCIÓN', 'AREA/SUBDIRECCION', 'AREA'),
     cargo: columnaOpcional(m, 'CARGO'),
@@ -51,15 +64,19 @@ export async function leerDotacion(buffer: ArrayBuffer | Uint8Array): Promise<Re
 
   for (let r = fEnc + 1; r <= hoja.rowCount; r++) {
     const fila = hoja.getRow(r);
-    const rutTexto = t(fila, c.rutDv) || t(fila, c.rut);
+    const escrito = t(fila, c.rutDv) || t(fila, c.rut);
     const nombre = t(fila, c.nombre);
-    if (!rutTexto) {
+    if (!escrito) {
       if (nombre) alerta({ nivel: 'media', hoja: hoja.name, fila: r, rut: '', nombre, alerta: 'Fila sin RUT', detalle: 'No se puede asociar a ningún saldo.' });
       continue;
     }
+    const corregido = c.rutDv ? rutValidoDeLaFila(escrito, t(fila, c.rut), t(fila, c.dv)) : null;
+    const rutTexto = corregido ?? escrito;
     const rut = numeroRut(rutTexto);
-    if (c.rutDv && !rutValido(rutTexto)) {
-      alerta({ nivel: 'media', hoja: hoja.name, fila: r, rut: rutTexto, nombre, alerta: 'RUT con dígito verificador inválido', detalle: `Para el número ${rut} el dígito correcto es ${dvDe(rut)}.` });
+    if (corregido) {
+      alerta({ nivel: 'media', hoja: hoja.name, fila: r, rut: escrito, nombre, alerta: 'RUT-DV mal escrito', detalle: `Dice ${limpiarRut(escrito)}, que no es un RUT válido. Se usó ${limpiarRut(corregido)}, que sale de las columnas RUT y DV de la misma fila. Corrige la columna RUT-DV.` });
+    } else if (c.rutDv && !rutValido(rutTexto)) {
+      alerta({ nivel: 'alta', hoja: hoja.name, fila: r, rut: rutTexto, nombre, alerta: 'RUT con dígito verificador inválido', detalle: `Para el número ${rut} el dígito correcto es ${dvDe(rut)}. Mientras no se corrija, esta persona no recibe su correo ni sus datos laborales.` });
     }
     const correoInstitucional = c.correoInst ? correo(valor(fila.getCell(c.correoInst))) : null;
     const correoPersonal = c.correoPers ? correo(valor(fila.getCell(c.correoPers))) : null;

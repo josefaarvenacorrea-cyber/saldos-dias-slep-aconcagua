@@ -262,20 +262,55 @@ export async function feriadoPorVencerLista(): Promise<FeriadoPorVencer> {
 }
 
 /** Alertas que cruzan archivos: personas con saldos que no pueden ingresar. */
+const nombreNormalizado = (s: string | null) => (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/**
+ * Alertas que cruzan archivos: personas con saldos que no están en la Dotación (sin correo ni
+ * datos laborales) o que están pero sin correo. Si en la Dotación hay alguien con el mismo nombre
+ * y otro RUT, se indica para que se corrija el RUT en el Excel que corresponda.
+ */
 export async function alertasDeCuentas(): Promise<Alerta[]> {
-  const filas = await consulta<{ rut: string; nombre: string | null; email: string | null }>(
-    `select rut, nombre, email from usuarios where rol = 'funcionario' and vigente and email is null order by nombre`,
-  );
-  return filas.map((f) => ({
-    nivel: 'alta' as const,
-    archivo: 'dotacion' as const,
-    hoja: 'Cuentas',
-    fila: null,
-    rut: f.rut,
-    nombre: f.nombre ?? '',
-    alerta: 'Sin correo: no puede ingresar',
-    detalle: 'No está en la Dotación o no tiene correo ahí. Puedes agregarlo desde Funcionarios.',
-  }));
+  const [usuarios, dotacion] = await Promise.all([
+    consulta<{ rut: string; nombre: string | null; email: string | null; email_manual: boolean }>(
+      `select rut, nombre, email, email_manual from usuarios where rol = 'funcionario' and vigente order by nombre`,
+    ),
+    consulta<{ rut: string; nombre: string | null; rut_texto: string | null; correo: string | null }>(
+      `select r.rut, r.datos->>'nombre' as nombre, r.datos->>'rutTexto' as rut_texto,
+              coalesce(r.datos->>'correoPersonal', r.datos->>'correoInstitucional') as correo
+       from cargas c join registros r on r.carga_id = c.id where c.activa and c.tipo = 'dotacion'`,
+    ),
+  ]);
+  if (!dotacion.length) {
+    return usuarios
+      .filter((u) => !u.email)
+      .map((u) => ({ nivel: 'alta' as const, archivo: 'dotacion' as const, hoja: 'Cuentas', fila: null, rut: u.rut, nombre: u.nombre ?? '', alerta: 'Sin correo: no puede ingresar', detalle: 'Todavía no se ha cargado la Dotación.' }));
+  }
+  const porRut = new Map(dotacion.map((d) => [d.rut, d]));
+  const porNombre = new Map<string, typeof dotacion>();
+  for (const d of dotacion) {
+    const k = nombreNormalizado(d.nombre);
+    porNombre.set(k, [...(porNombre.get(k) ?? []), d]);
+  }
+  const alertas: Alerta[] = [];
+  for (const u of usuarios) {
+    const enDotacion = porRut.get(u.rut);
+    const base = { archivo: 'dotacion' as const, hoja: 'Cuentas', fila: null, rut: u.rut, nombre: u.nombre ?? '' };
+    if (!enDotacion) {
+      const parecidos = (porNombre.get(nombreNormalizado(u.nombre)) ?? []).filter((d) => d.rut !== u.rut);
+      const pista = parecidos.length
+        ? `En la Dotación aparece alguien con el mismo nombre y RUT ${parecidos.map((d) => d.rut_texto ?? d.rut).join(' / ')}: corrige el RUT en el Excel que esté malo (SALDOS o Dotación).`
+        : 'Revisa si su RUT está bien escrito en la Dotación o si falta agregarla.';
+      alertas.push({
+        ...base,
+        nivel: u.email ? 'media' : 'alta',
+        alerta: u.email ? 'No aparece en la Dotación con su RUT' : 'No aparece en la Dotación con su RUT: no puede ingresar',
+        detalle: `${u.email ? 'Ingresa con el correo puesto a mano, pero no se muestran sus datos laborales (cargo, jefatura, etc.). ' : ''}${pista}`,
+      });
+    } else if (!u.email) {
+      alertas.push({ ...base, nivel: 'alta', alerta: 'Sin correo: no puede ingresar', detalle: 'Está en la Dotación, pero sin correo. Agrégalo en la Dotación o desde Funcionarios.' });
+    }
+  }
+  return alertas;
 }
 
 export async function auditoriaReciente(limite = 200) {

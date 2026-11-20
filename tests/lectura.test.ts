@@ -378,3 +378,17 @@ test('Integración: el cursor lleva fecha e id, para no saltarse documentos', as
   const c = { en: '2026-11-20T14:01:33.295Z', id: 7 };
   assert.deepEqual(leerCursor(escribirCursor(c)), c);
 });
+
+test('Dotación: si el RUT-DV está mal escrito, usa las columnas RUT y DV de la misma fila', async () => {
+  const { default: ExcelJS } = await import('exceljs');
+  const libro = new ExcelJS.Workbook();
+  const h = libro.addWorksheet('Hoja1');
+  h.addRow(['RUT-DV', 'RUT', 'DV', 'NOMBRE COMPLETO', 'CORREO INSTITUCIONAL', 'Jefatura']);
+  h.addRow(['11111110-1', 11111111, 1, 'Persona Ficticia Uno', 'uno@ejemplo.cl', 'Jefatura Ficticia']); // RUT-DV con un dígito cambiado
+  h.addRow(['22222220-2', 222222222, 2, 'Persona Ficticia Dos', 'dos@ejemplo.cl', '-']); // RUT con el dígito pegado
+  const r = await leerDotacion(new Uint8Array(await libro.xlsx.writeBuffer()));
+  assert.equal(r.personas['11111111']?.correoInstitucional, 'uno@ejemplo.cl');
+  assert.equal(r.personas['11111111']?.jefatura, 'Jefatura Ficticia');
+  assert.equal(r.personas['22222222']?.correoInstitucional, 'dos@ejemplo.cl');
+  assert.equal(r.alertas.filter((a) => a.alerta === 'RUT-DV mal escrito').length, 2);
+});
