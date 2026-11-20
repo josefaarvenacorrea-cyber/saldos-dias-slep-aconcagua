@@ -11,7 +11,7 @@ const cabecerasDeSeguridad = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  serverExternalPackages: ['exceljs', '@electric-sql/pglite'],
+  serverExternalPackages: ['exceljs', '@electric-sql/pglite', '@react-pdf/renderer'],
   async headers() {
     return [{ source: '/:path*', headers: cabecerasDeSeguridad }];
   },
