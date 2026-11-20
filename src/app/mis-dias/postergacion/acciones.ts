@@ -8,6 +8,7 @@ import { firmaDe } from '@/lib/firmas';
 import { jefaturaDe } from '@/lib/jefaturas';
 import { etapaPostergacion, PROCESO_POSTERGACION } from '@/lib/postergacion';
 import { crearSolicitud, responderFuncionario, solicitudDe } from '@/lib/postergaciones';
+import { avisarPostergacion } from '@/lib/webhook';
 import { hoyChile } from '@/lib/fechas';
 import { formatearRut } from '@/lib/rut';
 import { requerirUsuario } from '@/lib/sesion';
@@ -117,6 +118,7 @@ export async function aceptar(_: EstadoPaso, form: FormData): Promise<EstadoPaso
 
   const d = (await fichaDe(u.rut)).dotacion;
   await responderFuncionario(p.id, acepta, dias, await actoDe(d?.nombre || u.nombre || '', formatearRut(u.rut)));
+  await avisarPostergacion(p.id);
 
   revalidatePath('/mis-dias/postergacion');
   revalidatePath('/mis-dias');

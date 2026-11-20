@@ -392,3 +392,97 @@ test('Dotación: si el RUT-DV está mal escrito, usa las columnas RUT y DV de la
   assert.equal(r.personas['22222222']?.correoInstitucional, 'dos@ejemplo.cl');
   assert.equal(r.alertas.filter((a) => a.alerta === 'RUT-DV mal escrito').length, 2);
 });
+
+test('Avisos: el correo del permiso dice lo que corresponde según el tipo', async () => {
+  const a = await import('../src/lib/avisos.ts');
+  const base = {
+    codigo: 'ABC123',
+    nombre: 'Ana María Prueba Soto',
+    jefaturaNombre: 'Jefa De Prueba Mena',
+    autorizado: true,
+    horaDesde: null,
+    horaHasta: null,
+    recuperacion: null,
+  };
+
+  // Feriado legal de varios días: dice el rango y el total.
+  const feriado = { ...base, tipo: 'feriado' as const, desde: '2026-06-30', hasta: '2026-07-03', totalDias: 4 };
+  assert.equal(a.asuntoPermiso(feriado), 'Permiso autorizado: Feriado Legal · ABC123');
+  let c = a.cuerpoPermiso(feriado);
+  assert.match(c, /Desde el <strong>30-06-2026<\/strong> hasta el <strong>03-07-2026<\/strong>, 4 días\./);
+  assert.match(c, /quedó <strong>autorizada<\/strong>/);
+
+  // Medio día: coma decimal, y plural, que es lo que corresponde para todo lo que no sea 1.
+  c = a.cuerpoPermiso({ ...base, tipo: 'goce' as const, desde: '2026-03-02', hasta: '2026-03-02', totalDias: 0.5 });
+  assert.match(c, /El <strong>02-03-2026<\/strong>, 0,5 días\./);
+  assert.equal(a.diasTexto(1), '1 día');
+  assert.equal(a.diasTexto(1.5), '1,5 días');
+
+  // Descanso compensatorio: horas en vez de días.
+  c = a.cuerpoPermiso({
+    ...base,
+    tipo: 'compensatorio' as const,
+    desde: '2026-11-18',
+    hasta: '2026-11-18',
+    totalDias: 0,
+    horaDesde: '14:00',
+    horaHasta: '16:30',
+  });
+  assert.match(c, /de 14:00 a 16:30/);
+  assert.ok(!/días/.test(c), 'un permiso por horas no debe hablar de días');
+
+  // Interferiado: no cuenta días y sí explica la devolución.
+  c = a.cuerpoPermiso({
+    ...base,
+    tipo: 'interferiado' as const,
+    desde: '2026-12-07',
+    hasta: '2026-12-07',
+    totalDias: 1,
+    recuperacion: { horas: 8, dias: 8, desde: '2026-12-09', hasta: '2026-12-18' },
+  });
+  assert.match(c, /no descuenta saldo/);
+  assert.match(c, /8 horas repartidas\s+en 8 días/);
+  assert.ok(!/, 1 día\./.test(c), 'el interferiado no descuenta saldo, no debe anunciar un día');
+
+  // Rechazado: no habla del saldo descontado ni del código de verificación.
+  c = a.cuerpoPermiso({ ...feriado, autorizado: false });
+  assert.match(c, /<strong>no fue autorizada<\/strong>/);
+  assert.match(c, /no se descontaron de tu saldo/);
+  assert.equal(a.asuntoPermiso({ ...feriado, autorizado: false }), 'Permiso no autorizado: Feriado Legal · ABC123');
+});
+
+test('Avisos: la copia siempre lleva a administración, y sin correo no se manda nada', async () => {
+  const { correoPlano, COPIA_ADMINISTRACION } = await import('../src/lib/avisos.ts');
+  const c = correoPlano('ana@x.cl', 'jefa@x.cl', 'Asunto', '<p>Hola</p>', 'doc.pdf', 'QkFTRTY0');
+  assert.equal(c?.para, 'ana@x.cl');
+  assert.equal(c?.copia, `jefa@x.cl;${COPIA_ADMINISTRACION}`);
+  // Sin jefatura conocida, la copia queda solo con administración.
+  assert.equal(correoPlano('ana@x.cl', null, 'A', 'B', 'c.pdf', 'd')?.copia, COPIA_ADMINISTRACION);
+  // Sin correo del funcionario no hay a quién escribirle.
+  assert.equal(correoPlano(null, 'jefa@x.cl', 'A', 'B', 'c.pdf', 'd'), null);
+});
+
+test('Avisos: el correo de la postergación distingue los tres cierres', async () => {
+  const { cuerpoPostergacion, asuntoPostergacion } = await import('../src/lib/avisos.ts');
+  const base = {
+    codigo: 'XYZ789',
+    nombre: 'Ana María Prueba Soto',
+    jefaturaNombre: 'Jefa De Prueba Mena',
+    anio: 2026,
+    anioDeUso: 2027,
+    fechaInicio: '2026-12-15',
+  };
+  assert.equal(asuntoPostergacion({ ...base, estadoTexto: '', acepto: true, diasAcumular: 10 }), 'Postergación de feriado legal · XYZ789');
+
+  // Aceptó: dice cuántos días acumula y para qué año.
+  let c = cuerpoPostergacion({ ...base, estadoTexto: 'Postergación solicitada', acepto: true, diasAcumular: 10 });
+  assert.match(c, /Acumulas <strong>10 días<\/strong> de tu feriado legal 2026/);
+  assert.match(c, /para usarlos en 2027/);
+
+  // Sin postergación o desistida: no hay días que acumular, así que no se menciona.
+  for (const estado of ['Feriado autorizado', 'Desistida']) {
+    c = cuerpoPostergacion({ ...base, estadoTexto: estado, acepto: false, diasAcumular: null });
+    assert.match(c, new RegExp(estado));
+    assert.ok(!/Acumulas/.test(c), `"${estado}" no debe anunciar días acumulados`);
+  }
+});
