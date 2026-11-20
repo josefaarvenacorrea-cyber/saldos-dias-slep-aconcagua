@@ -2,7 +2,13 @@ import { NextResponse } from 'next/server';
 import { esIntegracion } from '@/lib/integracion';
 import { permisoPorCodigo } from '@/lib/permisos';
 import { porCodigo } from '@/lib/postergaciones';
-import { avisarPermiso, avisarPostergacion } from '@/lib/webhook';
+import {
+  avisarPermiso,
+  avisarPermisoPendiente,
+  avisarPostergacion,
+  avisarPostergacionPendiente,
+  avisarPostergacionPropuesta,
+} from '@/lib/webhook';
 import { auditar } from '@/lib/db';
 
 /**
@@ -37,7 +43,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'No existe ese documento.' }, { status: 404 });
   }
 
-  const enviado = permiso ? await avisarPermiso(permiso.id) : await avisarPostergacion(postergacion!.id);
+  // Se reenvía el aviso que corresponde al estado en que está el documento ahora, no siempre el de
+  // cierre: una solicitud esperando firma vuelve a avisarle a quien le toca firmar.
+  const enviado = permiso
+    ? permiso.estado === 'pendiente_jefatura'
+      ? await avisarPermisoPendiente(permiso.id)
+      : await avisarPermiso(permiso.id)
+    : postergacion!.estado === 'pendiente_jefatura'
+      ? await avisarPostergacionPendiente(postergacion!.id)
+      : postergacion!.estado === 'pendiente_funcionario'
+        ? await avisarPostergacionPropuesta(postergacion!.id)
+        : await avisarPostergacion(postergacion!.id);
   await auditar('integracion', 'integracion.avisar', { codigo, enviado });
 
   if (!enviado) {

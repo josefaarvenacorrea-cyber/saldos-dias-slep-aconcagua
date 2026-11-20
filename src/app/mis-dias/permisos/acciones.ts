@@ -6,6 +6,7 @@ import { fichaDe } from '@/lib/datos';
 import { firmaDe } from '@/lib/firmas';
 import { jefaturaDe } from '@/lib/jefaturas';
 import { crearPermiso, saldosDisponibles } from '@/lib/permisos';
+import { avisarPermisoPendiente } from '@/lib/webhook';
 import {
   planRecuperacion,
   revisar,
@@ -92,7 +93,7 @@ export async function pedirPermiso(_: EstadoPermisoForm, form: FormData): Promis
   const d = ficha.dotacion;
   const porHoras = tipo === 'compensatorio';
 
-  await crearPermiso({
+  const creado = await crearPermiso({
     rut: u.rut,
     jefaturaRut: jefatura.rut,
     ficha: {
@@ -116,6 +117,8 @@ export async function pedirPermiso(_: EstadoPermisoForm, form: FormData): Promis
     totalMinutos: porHoras ? totalMinutos(horaDesde, horaHasta) : 0,
     firma: await actoDe(d?.nombre || u.nombre || '', formatearRut(u.rut)),
   });
+  // La jefatura se entera por correo de que tiene algo pendiente de firma.
+  await avisarPermisoPendiente(creado.id);
 
   revalidatePath('/mis-dias/permisos');
   revalidatePath('/mis-dias');

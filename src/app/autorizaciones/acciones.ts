@@ -6,7 +6,7 @@ import { fichaDe } from '@/lib/datos';
 import { firmaDe } from '@/lib/firmas';
 import { permisoPorId, responderPermiso } from '@/lib/permisos';
 import { porId, responderJefatura } from '@/lib/postergaciones';
-import { avisarPermiso, avisarPostergacion } from '@/lib/webhook';
+import { avisarPermiso, avisarPostergacion, avisarPostergacionPropuesta } from '@/lib/webhook';
 import { formatearRut } from '@/lib/rut';
 import { requerirUsuario } from '@/lib/sesion';
 
@@ -32,9 +32,10 @@ export async function responder(_: EstadoRespuesta, form: FormData): Promise<Est
   const autoriza = String(form.get('autoriza') ?? '') === 'si';
   const d = (await fichaDe(u.rut)).dotacion;
   await responderJefatura(p.id, autoriza, await actoDe(d?.nombre || u.nombre || '', formatearRut(u.rut)));
-  // Si autorizó el feriado, el proceso cerró y se avisa. Si lo denegó, la solicitud vuelve al
-  // funcionario y todavía no hay documento que avisar: avisarPostergacion lo distingue solo.
+  // Si autorizó el feriado, el proceso cerró. Si lo denegó y propuso postergar, la solicitud vuelve
+  // al funcionario para su firma de la sección III. Cada función avisa solo en su caso.
   await avisarPostergacion(p.id);
+  await avisarPostergacionPropuesta(p.id);
 
   revalidatePath('/autorizaciones');
   revalidatePath('/mis-dias/postergacion');

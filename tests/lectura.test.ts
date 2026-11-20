@@ -486,3 +486,89 @@ test('Avisos: el correo de la postergación distingue los tres cierres', async (
     assert.ok(!/Acumulas/.test(c), `"${estado}" no debe anunciar días acumulados`);
   }
 });
+
+test('Avisos: los correos de "pendiente de firma" dicen a quién le toca y qué hacer', async () => {
+  const a = await import('../src/lib/avisos.ts');
+
+  // A la jefatura, por un permiso: tiene que aparecer el solicitante, el tipo y los días.
+  const permiso = a.correoPermisoPendiente({
+    codigo: 'ABC123',
+    destinatarioNombre: 'Jefa De Prueba Mena',
+    solicitanteNombre: 'Ana María Prueba Soto',
+    jefaturaNombre: 'Jefa De Prueba Mena',
+    enlace: 'https://ejemplo.cl/autorizaciones',
+    tipo: 'goce',
+    desde: '2026-12-02',
+    hasta: '2026-12-03',
+    totalDias: 1.5,
+    horaDesde: null,
+    horaHasta: null,
+    detalle: null,
+  });
+  assert.equal(permiso.asunto, 'Permiso pendiente de tu firma: Ana María Prueba Soto · Con goce de remuneraciones');
+  assert.match(permiso.cuerpoHtml, /Hola Jefa De Prueba Mena/);
+  assert.match(permiso.cuerpoHtml, /del 02-12-2026 al 03-12-2026/);
+  assert.match(permiso.cuerpoHtml, /1,5 días/);
+  assert.match(permiso.cuerpoHtml, /href="https:\/\/ejemplo\.cl\/autorizaciones"/);
+
+  // Un permiso por horas no debe hablar de días.
+  const porHoras = a.correoPermisoPendiente({
+    codigo: 'ABC124',
+    destinatarioNombre: 'Jefa De Prueba Mena',
+    solicitanteNombre: 'Ana María Prueba Soto',
+    jefaturaNombre: 'Jefa De Prueba Mena',
+    enlace: 'https://ejemplo.cl/autorizaciones',
+    tipo: 'compensatorio',
+    desde: '2026-11-18',
+    hasta: '2026-11-18',
+    totalDias: 0,
+    horaDesde: '14:00',
+    horaHasta: '16:30',
+    detalle: null,
+  });
+  assert.match(porHoras.cuerpoHtml, /de 14:00 a 16:30/);
+  assert.ok(!/Días:/.test(porHoras.cuerpoHtml), 'un permiso por horas no lleva línea de días');
+
+  // Al funcionario, cuando la jefatura propuso postergar: dice que falta su firma.
+  const propuesta = a.correoPostergacionPropuesta({
+    codigo: 'XYZ789',
+    destinatarioNombre: 'Rodrigo Prueba Vera',
+    solicitanteNombre: 'Rodrigo Prueba Vera',
+    jefaturaNombre: 'Jefa De Prueba Mena',
+    enlace: 'https://ejemplo.cl/mis-dias/postergacion',
+    diasSolicitados: 12,
+    fechaInicio: '2027-01-05',
+    postergable: 12,
+  });
+  assert.match(propuesta.cuerpoHtml, /Hola Rodrigo Prueba Vera/);
+  assert.match(propuesta.cuerpoHtml, /sección III/);
+  assert.match(propuesta.cuerpoHtml, /acumular hasta 12 días/);
+
+  // Solo los avisos de cierre llevan PDF y se archivan.
+  assert.equal(a.esCierre('permiso.respondido'), true);
+  assert.equal(a.esCierre('postergacion.cerrada'), true);
+  for (const e of ['permiso.solicitado', 'postergacion.solicitada', 'postergacion.propuesta'] as const) {
+    assert.equal(a.esCierre(e), false, `${e} no debe archivar ni adjuntar`);
+  }
+});
+
+test('Avisos: el cierre de la postergación avisa que falta la resolución exenta', async () => {
+  const { cuerpoPostergacion } = await import('../src/lib/avisos.ts');
+  const base = {
+    codigo: 'XYZ789',
+    nombre: 'Ana María Prueba Soto',
+    jefaturaNombre: 'Jefa De Prueba Mena',
+    anio: 2026,
+    anioDeUso: 2027,
+    fechaInicio: '2026-12-15',
+  };
+  const c = cuerpoPostergacion({ ...base, estadoTexto: 'Postergación solicitada', acepto: true, diasAcumular: 10 });
+  assert.match(c, /resolución exenta/);
+  assert.match(c, /no se tramita en esta plataforma/);
+  // Va después del cierre, para que no se lea contradictorio con "no hay que enviarlo".
+  assert.ok(c.indexOf('resolución exenta') > c.indexOf('va adjunto'), 'la REX va al final');
+
+  // Si no aceptó, no hay nada que oficializar.
+  const d = cuerpoPostergacion({ ...base, estadoTexto: 'Feriado autorizado', acepto: false, diasAcumular: null });
+  assert.ok(!/resolución exenta/.test(d));
+});

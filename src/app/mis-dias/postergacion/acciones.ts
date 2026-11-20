@@ -8,7 +8,7 @@ import { firmaDe } from '@/lib/firmas';
 import { jefaturaDe } from '@/lib/jefaturas';
 import { etapaPostergacion, PROCESO_POSTERGACION } from '@/lib/postergacion';
 import { crearSolicitud, responderFuncionario, solicitudDe } from '@/lib/postergaciones';
-import { avisarPostergacion } from '@/lib/webhook';
+import { avisarPostergacion, avisarPostergacionPendiente } from '@/lib/webhook';
 import { hoyChile } from '@/lib/fechas';
 import { formatearRut } from '@/lib/rut';
 import { requerirUsuario } from '@/lib/sesion';
@@ -62,7 +62,7 @@ export async function solicitar(_: EstadoPaso, form: FormData): Promise<EstadoPa
   }
 
   const d = ficha.dotacion;
-  await crearSolicitud({
+  const creada = await crearSolicitud({
     rut: u.rut,
     jefaturaRut: jefatura.rut,
     ficha: {
@@ -80,6 +80,7 @@ export async function solicitar(_: EstadoPaso, form: FormData): Promise<EstadoPa
     fechaInicio,
     firma: await actoDe(d?.nombre || u.nombre || '', formatearRut(u.rut)),
   });
+  await avisarPostergacionPendiente(creada.id);
 
   revalidatePath('/mis-dias/postergacion');
   revalidatePath('/mis-dias');

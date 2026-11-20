@@ -9,7 +9,10 @@ import { CARPETAS, TIPO_EXCEL, anioDe, baseDe, carpetaDe, cargosPorMes, rangoDe 
 import {
   asuntoPermiso,
   asuntoPostergacion,
+  correoPermisoPendiente,
   correoPlano,
+  correoPostergacionPendiente,
+  correoPostergacionPropuesta,
   cuerpoPermiso,
   cuerpoPostergacion,
   filaMovimiento,
@@ -29,6 +32,15 @@ import {
  */
 
 const TIEMPO_MAXIMO = 15000;
+
+/** La dirección pública de la plataforma, para los enlaces de los correos. */
+function baseUrl(): string {
+  const propia = process.env.URL_PLATAFORMA;
+  if (propia) return propia.replace(/\/$/, '');
+  const produccion = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (produccion) return `https://${produccion}`;
+  return 'https://saldos-dias-slep-aconcagua.vercel.app';
+}
 
 async function postear(cuerpo: unknown, codigo: string): Promise<boolean> {
   const url = process.env.POWER_AUTOMATE_WEBHOOK_URL;
@@ -64,6 +76,115 @@ export async function avisarPermiso(id: number): Promise<boolean> {
   const p = await permisoPorId(id);
   if (!p || p.estado === 'pendiente_jefatura') return false;
   return postear(await cuerpoDePermiso(p), p.codigo);
+}
+
+/**
+ * El aviso a la jefatura de que tiene un permiso esperando su firma. Va sin PDF y con el enlace
+ * para entrar a firmar: el formulario todavía no está firmado por las dos partes.
+ */
+export async function avisarPermisoPendiente(id: number): Promise<boolean> {
+  const p = await permisoPorId(id);
+  if (!p || p.estado !== 'pendiente_jefatura') return false;
+  const jefaturaCorreo = await correoDe(p.jefaturaRut);
+  const { desde, hasta } = rangoDe(p.dias);
+  const { asunto, cuerpoHtml } = correoPermisoPendiente({
+    codigo: p.codigo,
+    destinatarioNombre: p.ficha.jefaturaNombre,
+    solicitanteNombre: p.ficha.nombre,
+    jefaturaNombre: p.ficha.jefaturaNombre,
+    enlace: `${baseUrl()}/autorizaciones`,
+    tipo: p.tipo,
+    desde,
+    hasta,
+    totalDias: p.totalDias,
+    horaDesde: p.horaDesde,
+    horaHasta: p.horaHasta,
+    detalle: p.detalle,
+  });
+  return postear(
+    {
+      version: 1,
+      evento: 'permiso.solicitado',
+      clase: 'permiso',
+      codigo: p.codigo,
+      tipo: p.tipo,
+      tipoNombre: nombreTipo(p.tipo),
+      estado: p.estado,
+      archivar: false,
+      // Solo la jefatura: el funcionario ya sabe que lo pidió, y administración lo verá al cerrarse.
+      correo: jefaturaCorreo
+        ? { para: jefaturaCorreo, copia: '', asunto, cuerpoHtml, adjuntoNombre: '', adjuntoContenidoBase64: '' }
+        : null,
+      archivo: null,
+      base: 'ninguna',
+      movimientos: [],
+      detalleUso: null,
+      interferiado: null,
+    },
+    p.codigo,
+  );
+}
+
+/** El aviso a la jefatura de que tiene una postergación esperando su firma de la sección II. */
+export async function avisarPostergacionPendiente(id: number): Promise<boolean> {
+  const p = await porId(id);
+  if (!p || p.estado !== 'pendiente_jefatura') return false;
+  const jefaturaCorreo = await correoDe(p.jefaturaRut);
+  const { asunto, cuerpoHtml } = correoPostergacionPendiente({
+    codigo: p.codigo,
+    destinatarioNombre: p.ficha.jefaturaNombre,
+    solicitanteNombre: p.ficha.nombre,
+    jefaturaNombre: p.ficha.jefaturaNombre,
+    enlace: `${baseUrl()}/autorizaciones`,
+    diasSolicitados: p.diasSolicitados,
+    fechaInicio: p.fechaInicio,
+  });
+  return postear(sobreSinArchivo(p, 'postergacion.solicitada', jefaturaCorreo, '', asunto, cuerpoHtml), p.codigo);
+}
+
+/** El aviso al funcionario de que la jefatura propuso postergar y falta su firma de la sección III. */
+export async function avisarPostergacionPropuesta(id: number): Promise<boolean> {
+  const p = await porId(id);
+  if (!p || p.estado !== 'pendiente_funcionario') return false;
+  const correo = await correoDe(p.rut);
+  const { asunto, cuerpoHtml } = correoPostergacionPropuesta({
+    codigo: p.codigo,
+    destinatarioNombre: p.ficha.nombre,
+    solicitanteNombre: p.ficha.nombre,
+    jefaturaNombre: p.ficha.jefaturaNombre,
+    enlace: `${baseUrl()}/mis-dias/postergacion`,
+    diasSolicitados: p.diasSolicitados,
+    fechaInicio: p.fechaInicio,
+    postergable: p.ficha.postergableAlSolicitar ?? null,
+  });
+  return postear(sobreSinArchivo(p, 'postergacion.propuesta', correo, '', asunto, cuerpoHtml), p.codigo);
+}
+
+/** El sobre de un aviso intermedio: sin PDF, sin archivo y sin filas que escribir. */
+function sobreSinArchivo(
+  p: Postergacion,
+  evento: string,
+  para: string | null,
+  copia: string,
+  asunto: string,
+  cuerpoHtml: string,
+) {
+  return {
+    version: 1,
+    evento,
+    clase: 'postergacion',
+    codigo: p.codigo,
+    tipo: 'postergacion',
+    tipoNombre: 'Postergación de feriado legal',
+    estado: p.estado,
+    archivar: false,
+    correo: para ? { para, copia, asunto, cuerpoHtml, adjuntoNombre: '', adjuntoContenidoBase64: '' } : null,
+    archivo: null,
+    base: 'ninguna',
+    movimientos: [],
+    detalleUso: null,
+    interferiado: null,
+  };
 }
 
 async function cuerpoDePermiso(p: Permiso) {
@@ -118,7 +239,9 @@ async function cuerpoDePermiso(p: Permiso) {
 
   return {
     version: 1,
+    evento: 'permiso.respondido',
     clase: 'permiso',
+    archivar: true,
     codigo: p.codigo,
     tipo: p.tipo,
     tipoNombre: nombreTipo(p.tipo),
@@ -222,7 +345,9 @@ async function cuerpoDePostergacion(p: Postergacion) {
   };
   return {
     version: 1,
+    evento: 'postergacion.cerrada',
     clase: 'postergacion',
+    archivar: true,
     codigo: p.codigo,
     tipo: 'postergacion',
     tipoNombre: 'Postergación de feriado legal',
