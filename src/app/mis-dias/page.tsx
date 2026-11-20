@@ -4,23 +4,19 @@ import { Marco } from '@/componentes/Marco';
 import { Alerta } from '@/componentes/Alerta';
 import { VistaFicha } from '@/componentes/VistaFicha';
 import { fichaDe } from '@/lib/datos';
+import { enlacesDe } from '@/lib/enlaces';
 import { requerirUsuario } from '@/lib/sesion';
 
 export const metadata: Metadata = { title: 'Mis días' };
-
-const ENLACES = [
-  { href: '/mis-dias', texto: 'Mis días' },
-  { href: '/cambiar-clave', texto: 'Cambiar contraseña' },
-];
 
 export default async function MisDias({ searchParams }: { searchParams: Promise<{ tipo?: string; clave?: string }> }) {
   const u = await requerirUsuario();
   if (u.rol === 'admin') redirect('/admin');
   const { tipo, clave } = await searchParams;
-  const ficha = await fichaDe(u.rut ?? '');
+  const [ficha, enlaces] = await Promise.all([fichaDe(u.rut ?? ''), enlacesDe(u.rut)]);
   const nombre = (ficha.dias?.nombre || ficha.dotacion?.nombre || u.nombre || '').split(' ')[0];
   return (
-    <Marco usuario={u} enlaces={ENLACES}>
+    <Marco usuario={u} enlaces={enlaces}>
       <div className="contenedor">
         <div className="seccion">
           <h1>Hola{nombre ? `, ${nombre}` : ''}</h1>

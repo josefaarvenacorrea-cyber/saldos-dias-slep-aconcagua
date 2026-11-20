@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dvDe, formatearRut, numeroRut, rutValido, claveInicialDe } from '../src/lib/rut.ts';
 import { repartirDiasHabiles, diasHabilesEntre, diasHabilesRestantesDelAnio } from '../src/lib/fechas.ts';
-import { feriadoPorVencer } from '../src/lib/feriado.ts';
+import { feriadoPorVencer, feriadoPostergable } from '../src/lib/feriado.ts';
 import { horas, numero } from '../src/lib/formato.ts';
 import { leerDias } from '../src/lib/excel/dias.ts';
 import { leerDescansos } from '../src/lib/excel/descansos.ts';
@@ -62,6 +62,200 @@ test('Feriado legal por vencer: lo usado se descuenta primero de los días acumu
   assert.equal(feriadoPorVencer({ ...base, acumuladoAnterior: 0, usados: 0, saldo: 15 }), 0);
 });
 
+test('Feriado legal postergable: solo los días del año en curso, nunca los acumulados', () => {
+  const base = { acumuladoAnterior: 10, anualidad: 15, inicial: 25, usadosSegunResumen: 0 };
+  // Sin usar nada: se posterga la anualidad completa y los 10 acumulados quedan por vencer.
+  assert.equal(feriadoPostergable({ ...base, usados: 0, saldo: 25 }), 15);
+  // Ya usó los acumulados y 2 de la anualidad: todo el saldo es postergable.
+  assert.equal(feriadoPostergable({ ...base, usados: 12, saldo: 13 }), 13);
+  // Medios días: usó 7,5, quedan 2,5 acumulados por vencer y 15 postergables.
+  assert.equal(feriadoPostergable({ ...base, usados: 7.5, saldo: 17.5 }), 15);
+  // Sin acumulados: todo el saldo se puede postergar.
+  assert.equal(feriadoPostergable({ ...base, acumuladoAnterior: 0, usados: 0, saldo: 15 }), 15);
+  // Sin saldo: no hay nada que postergar.
+  assert.equal(feriadoPostergable({ ...base, usados: 25, saldo: 0 }), 0);
+  // Postergable + por vencer siempre suman el saldo.
+  const caso = { ...base, usados: 3, saldo: 22 };
+  assert.equal(feriadoPostergable(caso) + feriadoPorVencer(caso), caso.saldo);
+});
+
+test('Jefaturas: se empareja el nombre escrito en la Dotación, aunque esté incompleto', async () => {
+  const { tokensNombre, resolverPorNombre } = await import('../src/lib/nombres.ts');
+
+  assert.deepEqual(tokensNombre('Ríos Soto, María José'), ['MARIA', 'JOSE', 'RIOS', 'SOTO']);
+  assert.deepEqual(tokensNombre('Alejandra de las Mercedes Meza Veas'), ['ALEJANDRA', 'MERCEDES', 'MEZA', 'VEAS']);
+
+  const personas = [
+    { rut: '11111111', nombre: 'Alejandra de las Mercedes Meza Veas' },
+    { rut: '22222222', nombre: 'Carlos Andrés Rivas Mena' },
+    { rut: '33333333', nombre: 'Carlos Ignacio Rivas Mena' },
+    { rut: '44444444', nombre: 'María José Ríos Soto' },
+  ];
+  const r = (nombre: string, propio = '99999999') => resolverPorNombre(nombre, propio, personas);
+
+  // Nombre incompleto, pero sin ninguna duda de quién es.
+  assert.deepEqual(r('Alejandra Meza Veas'), { rut: '11111111' });
+  assert.deepEqual(r('Alejandra Meza'), { rut: '11111111' });
+  // Con acentos, sin acentos y con el apellido primero da lo mismo.
+  assert.deepEqual(r('MEZA VEAS, ALEJANDRA'), { rut: '11111111' });
+  assert.deepEqual(r('Rios Soto Maria Jose'), { rut: '44444444' });
+  // Dos personas con el mismo apellido: no se adivina, se avisa.
+  assert.deepEqual(r('Rivas Mena'), { motivo: 'ambiguo' });
+  assert.deepEqual(r('Carlos Rivas Mena'), { motivo: 'ambiguo' });
+  // Con el segundo nombre ya se distingue.
+  assert.deepEqual(r('Carlos Andrés Rivas'), { rut: '22222222' });
+  // Una sola palabra nunca alcanza.
+  assert.deepEqual(r('Alejandra'), { motivo: 'muy_corto' });
+  // Nombre que no está en la Dotación, y jefatura de sí misma.
+  assert.deepEqual(r('Pedro Pérez Soto'), { motivo: 'no_existe' });
+  assert.deepEqual(r('Alejandra Meza Veas', '11111111'), { motivo: 'si_mismo' });
+});
+
+test('Permisos: cada tipo con su regla de fraccionamiento y su tope de saldo', async () => {
+  const r = await import('../src/lib/reglasPermisos.ts');
+  const saldos = { feriado: 15, goce: 2.5, compensatorioMin: 450 }; // 450 min = 7:30
+
+  // Lunes 23 a miércoles 25 de noviembre de 2026.
+  type Tipo = 'feriado' | 'goce' | 'compensatorio' | 'interferiado' | 'otros';
+  const rango = (tipo: Tipo, previas = {}) => r.diasDelRango('2026-11-23', '2026-11-25', tipo, previas);
+
+  // Feriado legal: todos los días quedan completos, aunque se intente media jornada.
+  const feriado = rango('feriado', { '2026-11-24': 'am' as const });
+  assert.equal(r.totalDias(feriado), 3);
+  assert.ok(feriado.every((d) => d.jornada === 'completa'));
+
+  // Con goce: medio día vale 0,5, así que se llega a 2,5.
+  const goce = rango('goce', { '2026-11-25': 'pm' as const });
+  assert.equal(r.totalDias(goce), 2.5);
+  assert.equal(r.jornadaUnica(goce), null); // jornadas mezcladas: el papel no puede expresarlo
+  assert.equal(r.jornadaUnica(rango('goce')), 'completa');
+
+  // Un solo medio día son 0,5.
+  assert.equal(r.totalDias(r.diasDelRango('2026-11-23', '2026-11-23', 'goce', { '2026-11-23': 'am' })), 0.5);
+
+  // El fin de semana no se descuenta: sábado 28 y domingo 29 suman 0.
+  assert.equal(r.totalDias(r.diasDelRango('2026-11-28', '2026-11-29', 'goce')), 0);
+
+  const base = { horaDesde: '08:30', horaHasta: '11:30', certificado: null };
+
+  // Con goce pasando el saldo de 2,5.
+  const exceso = r.revisar({ ...base, tipo: 'goce', dias: r.diasDelRango('2026-11-23', '2026-11-26', 'goce') }, saldos);
+  assert.equal(exceso.ok, false);
+  assert.match(exceso.error ?? '', /saldo disponible es de 2\.5/);
+
+  // Con goce dentro del saldo.
+  assert.equal(r.revisar({ ...base, tipo: 'goce', dias: goce }, saldos).ok, true);
+
+  // Feriado legal con medio día: lo rechaza aunque alcance el saldo.
+  const medio = r.diasDelRango('2026-11-23', '2026-11-23', 'goce', { '2026-11-23': 'am' });
+  const malFeriado = r.revisar({ ...base, tipo: 'feriado', dias: medio }, saldos);
+  assert.equal(malFeriado.ok, false);
+  assert.match(malFeriado.error ?? '', /días completos/);
+
+  // Compensatorio: por horas y dentro del saldo.
+  const unDia = r.diasDelRango('2026-11-23', '2026-11-23', 'compensatorio');
+  assert.equal(r.revisar({ ...base, tipo: 'compensatorio', dias: unDia }, saldos).minutos, 180);
+  assert.equal(r.revisar({ ...base, tipo: 'compensatorio', dias: unDia, horaHasta: '17:00' }, saldos).ok, false);
+  assert.equal(r.revisar({ ...base, tipo: 'compensatorio', dias: unDia, horaHasta: '08:00' }, saldos).ok, false);
+  assert.equal(r.horasTexto(450), '7:30');
+
+  // Otros permisos: sin certificado no se puede enviar.
+  const sinCert = r.revisar({ ...base, tipo: 'otros', dias: rango('otros') }, saldos);
+  assert.equal(sinCert.ok, false);
+  assert.match(sinCert.error ?? '', /certificado/);
+  assert.equal(r.revisar({ ...base, tipo: 'otros', dias: rango('otros'), certificado: 'cert.pdf' }, saldos).ok, true);
+
+  // Interferiado: no descuenta saldo, pero solo se puede pedir en los días que corresponden.
+  assert.equal(r.descuentaSaldo('interferiado'), false);
+});
+
+test('Interferiado: solo el día hábil que está justo antes de un feriado', async () => {
+  const r = await import('../src/lib/reglasPermisos.ts');
+  const c = await import('../src/lib/feriadosChile.ts');
+  const saldos = { feriado: 15, goce: 2.5, compensatorioMin: 450 };
+  const base = { horaDesde: '08:30', horaHasta: '11:30', certificado: null };
+  // Devolver 8 horas a razón de 1 hora extra por día, empezando el miércoles 9 de diciembre.
+  const plan = (desde = '2026-12-09', horas = 8, porDia = 1) => ({
+    horas,
+    horasPorDia: porDia,
+    desde,
+    dias: r.planRecuperacion(desde, horas, porDia),
+  });
+  const pedir = (desde: string, recuperacion = plan(), hasta = desde) =>
+    r.revisar(
+      { ...base, tipo: 'interferiado' as const, dias: r.diasDelRango(desde, hasta, 'interferiado'), recuperacion },
+      saldos,
+    );
+
+  // Lunes 7 de diciembre de 2026, justo antes de la Inmaculada Concepción del martes 8.
+  assert.equal(c.esInterferiado('2026-12-07'), true);
+  assert.equal(pedir('2026-12-07').ok, true);
+
+  // Jueves 24 de diciembre, justo antes de Navidad.
+  assert.equal(c.esInterferiado('2026-12-24'), true);
+
+  // Un feriado que cae sábado no sirve de puente: acá no se trabaja los sábados.
+  assert.equal(c.esFeriado('2026-10-31'), true);
+  assert.equal(c.esInterferiado('2026-10-30'), false);
+
+  // Un lunes cualquiera no lo es.
+  assert.equal(c.esInterferiado('2026-11-23'), false);
+  const malo = pedir('2026-11-23');
+  assert.equal(malo.ok, false);
+  assert.match(malo.error ?? '', /justo antes de un feriado/);
+
+  // El feriado mismo no es interferiado, ni tampoco un fin de semana.
+  assert.equal(c.esInterferiado('2026-12-25'), false);
+  assert.equal(c.esInterferiado('2026-12-26'), false);
+
+  // Los feriados no se descuentan del saldo en ningún tipo de permiso.
+  const cruzaFeriado = r.diasDelRango('2026-12-07', '2026-12-09', 'goce');
+  assert.equal(r.totalDias(cruzaFeriado), 2); // el martes 8 es feriado y no cuesta día
+  assert.equal(r.motivoNoHabil('2026-12-08'), 'Inmaculada Concepción');
+  assert.equal(r.motivoNoHabil('2026-12-05'), 'fin de semana');
+  assert.equal(r.motivoNoHabil('2026-12-07'), null);
+
+  // Sin calendario del año no se adivina.
+  assert.equal(c.hayCalendarioPara('2031-05-05'), false);
+  assert.match(pedir('2031-05-05').error ?? '', /feriados de ese año/);
+});
+
+test('Interferiado: las horas se devuelven y el calendario tiene que cuadrar', async () => {
+  const r = await import('../src/lib/reglasPermisos.ts');
+  const saldos = { feriado: 15, goce: 2.5, compensatorioMin: 450 };
+  const base = { horaDesde: '08:30', horaHasta: '11:30', certificado: null };
+  const dias = r.diasDelRango('2026-12-07', '2026-12-07', 'interferiado');
+  const pedir = (recuperacion: unknown) =>
+    r.revisar({ ...base, tipo: 'interferiado' as const, dias, recuperacion } as never, saldos);
+
+  // 8 horas a 1 por día: ocho días hábiles seguidos, saltando el fin de semana.
+  const ocho = r.planRecuperacion('2026-12-09', 8, 1);
+  assert.equal(ocho.length, 8);
+  assert.equal(r.totalRecuperado(ocho), 8);
+  assert.deepEqual(
+    ocho.map((d) => d.fecha),
+    ['2026-12-09', '2026-12-10', '2026-12-11', '2026-12-14', '2026-12-15', '2026-12-16', '2026-12-17', '2026-12-18'],
+  );
+
+  // El último día lleva el resto cuando no es múltiplo exacto.
+  const siete = r.planRecuperacion('2026-12-09', 7, 2);
+  assert.equal(siete.length, 4);
+  assert.deepEqual(siete.map((d) => d.horas), [2, 2, 2, 1]);
+  assert.equal(r.totalRecuperado(siete), 7);
+
+  // El plan salta los feriados: empezando el lunes 7, el martes 8 no se usa.
+  assert.equal(r.planRecuperacion('2026-12-07', 2, 1)[1].fecha, '2026-12-09');
+
+  // Sin plan, o con un plan que no suma, no se puede pedir.
+  assert.match(pedir(null).error ?? '', /cuántas horas vas a devolver/);
+  assert.match(pedir({ horas: 8, horasPorDia: 0, desde: '2026-12-09', dias: [] }).error ?? '', /horas extra vas a hacer/);
+  assert.match(
+    pedir({ horas: 8, horasPorDia: 1, desde: '2026-12-09', dias: r.planRecuperacion('2026-12-09', 5, 1) }).error ?? '',
+    /no suma las horas/,
+  );
+  assert.equal(pedir({ horas: 8, horasPorDia: 1, desde: '2026-12-09', dias: ocho }).ok, true);
+});
+
 test('Días hábiles que quedan en el año, desde mañana', () => {
   assert.equal(diasHabilesRestantesDelAnio('2026-10-27'), 45);
   assert.equal(diasHabilesRestantesDelAnio('2026-12-30'), 1);
@@ -87,10 +281,100 @@ test('Dotación: correos y personas sin correo', async () => {
 test('Aviso de postergación: solo antes y durante el proceso', async () => {
   const { etapaPostergacion } = await import('../src/lib/postergacion.ts');
   assert.equal(etapaPostergacion('2026-10-01'), null);
-  assert.equal(etapaPostergacion('2026-11-16'), 'proximo');
+  assert.equal(etapaPostergacion('2026-10-28'), null); // 22 días antes: todavía no se avisa
+  assert.equal(etapaPostergacion('2026-10-29'), 'proximo'); // 21 días antes: parte el aviso
+  assert.equal(etapaPostergacion('2026-11-18'), 'proximo');
+  assert.equal(etapaPostergacion('2026-11-19'), 'abierto');
   assert.equal(etapaPostergacion('2026-11-23'), 'abierto');
   assert.equal(etapaPostergacion('2026-12-05'), 'abierto');
   assert.equal(etapaPostergacion('2026-12-06'), 'terminado');
   assert.equal(etapaPostergacion('2026-12-11'), 'terminado');
   assert.equal(etapaPostergacion('2026-12-12'), null);
+});
+
+test('Integración: carpeta del SharePoint y base que alimenta cada tipo', async () => {
+  const { carpetaDe, baseDe, CARPETAS, TIPO_EXCEL } = await import('../src/lib/integracion.ts');
+  assert.equal(CARPETAS[carpetaDe('feriado')], 'Feriado legal');
+  assert.equal(CARPETAS[carpetaDe('goce')], 'Con goce de remuneraciones');
+  assert.equal(CARPETAS[carpetaDe('compensatorio')], 'Permisos complementarios');
+  // El interferiado y los demás permisos se archivan juntos.
+  assert.equal(carpetaDe('interferiado'), 'otros');
+  assert.equal(carpetaDe('otros'), 'otros');
+
+  assert.equal(baseDe('feriado'), 'dias');
+  assert.equal(baseDe('goce'), 'dias');
+  assert.equal(baseDe('compensatorio'), 'descansos');
+  assert.equal(baseDe('interferiado'), 'interferiados');
+  assert.equal(baseDe('otros'), 'ninguna');
+
+  // El texto del tipo en el Excel no es el de la pantalla.
+  assert.equal(TIPO_EXCEL.goce, 'Con Goce de Remuneraciones');
+  assert.equal(TIPO_EXCEL.interferiado, null);
+});
+
+test('Integración: los días se reparten al mes en que se toman', async () => {
+  const { cargosPorMes, rangoDe, anioDe } = await import('../src/lib/integracion.ts');
+  const { diasDelRango } = await import('../src/lib/reglasPermisos.ts');
+
+  // Un feriado legal que cruza de junio a julio: un día en junio, el resto en julio.
+  const cruza = diasDelRango('2026-06-30', '2026-07-03', 'feriado');
+  const reparto = cargosPorMes(cruza);
+  assert.deepEqual(
+    reparto.map((c) => [c.mes, c.dias]),
+    [
+      [6, 1],
+      [7, 3],
+    ],
+  );
+  assert.equal(reparto[0].mesNombre, 'Junio');
+  assert.deepEqual(rangoDe(cruza), { desde: '2026-06-30', hasta: '2026-07-03' });
+  assert.equal(anioDe(cruza, 2027), 2026);
+
+  // Un rango que cae en fin de semana no deja nada que cargar.
+  assert.deepEqual(cargosPorMes(diasDelRango('2026-06-06', '2026-06-07', 'goce')), []);
+
+  // El medio día vale 0,5 y se suma al mes que corresponde.
+  const medio = [
+    { fecha: '2026-03-02', jornada: 'am' as const },
+    { fecha: '2026-03-03', jornada: 'completa' as const },
+  ];
+  assert.deepEqual(
+    cargosPorMes(medio).map((c) => [c.mes, c.dias]),
+    [[3, 1.5]],
+  );
+
+  // El total repartido por mes y el total del permiso tienen que coincidir siempre.
+  const { totalDias } = await import('../src/lib/reglasPermisos.ts');
+  const suma = cargosPorMes(cruza).reduce((t, c) => t + c.dias, 0);
+  assert.equal(suma, totalDias(cruza));
+});
+
+test('Integración: el token se compara completo y en tiempo constante', async () => {
+  const { tokenCalza, tokenDe } = await import('../src/lib/integracion.ts');
+  assert.equal(tokenCalza('secreto-largo', 'secreto-largo'), true);
+  assert.equal(tokenCalza('secreto-largo', 'secreto-largX'), false);
+  assert.equal(tokenCalza('secreto-largo', 'secreto'), false);
+  assert.equal(tokenCalza('secreto-largo', 'secreto-largo-de-mas'), false);
+  // Sin token configurado no se entra ni con la cadena vacía.
+  assert.equal(tokenCalza('', ''), false);
+
+  const conCabecera = new Request('https://x.cl/api', { headers: { authorization: 'Bearer abc' } });
+  assert.equal(tokenDe(conCabecera), 'abc');
+  assert.equal(tokenDe(new Request('https://x.cl/api?token=def')), 'def');
+  assert.equal(tokenDe(new Request('https://x.cl/api')), null);
+});
+
+test('Integración: el cursor lleva fecha e id, para no saltarse documentos', async () => {
+  const { leerCursor, escribirCursor } = await import('../src/lib/integracion.ts');
+  assert.deepEqual(leerCursor('2026-11-20T14:01:33.295Z|41'), { en: '2026-11-20T14:01:33.295Z', id: 41 });
+  // Una fecha sola también sirve, por si el flujo parte con la hora de su última corrida.
+  assert.deepEqual(leerCursor('2026-11-20T14:01:33.295Z'), { en: '2026-11-20T14:01:33.295Z', id: 0 });
+  assert.equal(leerCursor(null), null);
+  assert.equal(leerCursor('cualquier cosa'), null);
+  assert.equal(leerCursor('2026-11-20T14:01:33.295Z|-3'), null);
+  assert.equal(escribirCursor({ en: '2026-11-20T14:01:33.295Z', id: 41 }), '2026-11-20T14:01:33.295Z|41');
+
+  // Ida y vuelta: lo que escribe el endpoint es lo que el flujo puede volver a leer.
+  const c = { en: '2026-11-20T14:01:33.295Z', id: 7 };
+  assert.deepEqual(leerCursor(escribirCursor(c)), c);
 });

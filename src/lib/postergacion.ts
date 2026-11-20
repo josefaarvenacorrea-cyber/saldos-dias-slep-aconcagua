@@ -6,7 +6,7 @@ import { sumarDias } from './fechas.ts';
  * Cambiar estas fechas cada año.
  */
 export const PROCESO_POSTERGACION = {
-  inicio: '2026-11-23',
+  inicio: '2026-11-19',
   fin: '2026-12-05',
   /** Hasta cuándo se sigue mostrando el aviso (después del fin dice que el proceso terminó). */
   avisoHasta: '2026-12-11',
@@ -29,13 +29,11 @@ export function etapaPostergacion(hoy: string): EtapaPostergacion | null {
   return hoy >= sumarDias(inicio, -AVISO_PREVIO_DIAS) ? 'proximo' : null;
 }
 
+/**
+ * Formularios que todavía se llenan en papel. El de postergación de feriado legal ya no está:
+ * ese trámite se hace completo dentro de la plataforma, en /mis-dias/postergacion.
+ */
 export const FORMULARIOS = [
-  {
-    archivo: '/formularios/formulario-postergacion-feriado-legal.docx',
-    titulo: 'Formulario de postergación de feriado legal',
-    descripcion: 'Para pedir postergar los días de feriado legal del año al año siguiente.',
-    peso: '69 KB',
-  },
   {
     archivo: '/formularios/formulario-solicitud-permisos.docx',
     titulo: 'Formulario de solicitud de permisos',

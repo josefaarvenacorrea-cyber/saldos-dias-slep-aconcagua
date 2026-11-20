@@ -10,3 +10,12 @@ export function feriadoPorVencer(fl: FichaDias['feriadoLegal']): number {
   const quedan = Math.min(fl.acumuladoAnterior - fl.usados, fl.saldo);
   return quedan > 1e-9 ? Math.round(quedan * 100) / 100 : 0;
 }
+
+/**
+ * Días de feriado legal que sí se pueden postergar al año siguiente: los del año en curso.
+ * Es el saldo menos los días acumulados de años anteriores que están por vencer.
+ */
+export function feriadoPostergable(fl: FichaDias['feriadoLegal']): number {
+  const quedan = fl.saldo - feriadoPorVencer(fl);
+  return quedan > 1e-9 ? Math.round(quedan * 100) / 100 : 0;
+}

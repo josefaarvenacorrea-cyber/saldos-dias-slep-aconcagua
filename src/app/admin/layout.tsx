@@ -7,6 +7,8 @@ const ENLACES = [
   { href: '/admin/funcionarios', texto: 'Funcionarios' },
   { href: '/admin/alertas', texto: 'Alertas' },
   { href: '/admin/feriado', texto: 'Feriado por vencer' },
+  { href: '/admin/permisos', texto: 'Permisos' },
+  { href: '/admin/postergaciones', texto: 'Postergaciones' },
   { href: '/admin/auditoria', texto: 'Registro de actividad' },
   { href: '/cambiar-clave', texto: 'Mi contraseña' },
 ];
