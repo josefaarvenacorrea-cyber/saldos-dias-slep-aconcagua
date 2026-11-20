@@ -2,7 +2,7 @@ import 'server-only';
 import { auditar, consulta } from './db.ts';
 import { fichaDe } from './datos.ts';
 import type { ActoFirma } from './postergaciones.ts';
-import type { CausalOtros, DiaPedido, Saldos, TipoPermiso } from './reglasPermisos.ts';
+import type { CausalOtros, DiaPedido, Recuperacion, Saldos, TipoPermiso } from './reglasPermisos.ts';
 
 /**
  * Solicitudes de permiso del "Formulario Solicitud de Permisos": el funcionario pide y firma,
@@ -33,6 +33,7 @@ export interface Permiso {
   detalle: string | null;
   certificado: string | null;
   dias: DiaPedido[];
+  recuperacion: Recuperacion | null;
   totalDias: number;
   horaDesde: string | null;
   horaHasta: string | null;
@@ -55,6 +56,7 @@ type Fila = {
   detalle: string | null;
   certificado: string | null;
   dias: DiaPedido[];
+  recuperacion: Recuperacion | null;
   total_dias: string | number;
   hora_desde: string | null;
   hora_hasta: string | null;
@@ -66,7 +68,7 @@ type Fila = {
   actualizada_en: string | Date;
 };
 
-const COLUMNAS = `id, codigo, rut, jefatura_rut, ficha, tipo, causal, detalle, certificado, dias,
+const COLUMNAS = `id, codigo, rut, jefatura_rut, ficha, tipo, causal, detalle, certificado, dias, recuperacion,
   total_dias, hora_desde, hora_hasta, total_minutos, estado, firma_solicitud, firma_jefatura,
   creada_en, actualizada_en`;
 
@@ -82,6 +84,7 @@ function desdeFila(f: Fila): Permiso {
     detalle: f.detalle,
     certificado: f.certificado,
     dias: Array.isArray(f.dias) ? f.dias : [],
+    recuperacion: f.recuperacion ?? null,
     totalDias: Number(f.total_dias),
     horaDesde: f.hora_desde,
     horaHasta: f.hora_hasta,
@@ -187,6 +190,7 @@ export async function crearPermiso(datos: {
   detalle: string | null;
   certificado: string | null;
   dias: DiaPedido[];
+  recuperacion: Recuperacion | null;
   totalDias: number;
   horaDesde: string | null;
   horaHasta: string | null;
@@ -197,10 +201,10 @@ export async function crearPermiso(datos: {
     try {
       const filas = await consulta<Fila>(
         `insert into permisos
-           (codigo, rut, jefatura_rut, ficha, tipo, causal, detalle, certificado, dias, total_dias,
-            hora_desde, hora_hasta, total_minutos, estado, firma_solicitud)
-         values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13,
-                 'pendiente_jefatura', $14::jsonb)
+           (codigo, rut, jefatura_rut, ficha, tipo, causal, detalle, certificado, dias, recuperacion,
+            total_dias, hora_desde, hora_hasta, total_minutos, estado, firma_solicitud)
+         values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, $12, $13, $14,
+                 'pendiente_jefatura', $15::jsonb)
          returning ${COLUMNAS}`,
         [
           nuevoCodigo(),
@@ -212,6 +216,7 @@ export async function crearPermiso(datos: {
           datos.detalle,
           datos.certificado,
           JSON.stringify(datos.dias),
+          datos.recuperacion ? JSON.stringify(datos.recuperacion) : null,
           datos.totalDias,
           datos.horaDesde,
           datos.horaHasta,

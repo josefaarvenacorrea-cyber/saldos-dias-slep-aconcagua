@@ -415,6 +415,12 @@ details.desplegable[open] > summary { border-bottom: 1px solid var(--gris-10); m
 .resumen-solicitud.bien { background: #e6f4ec; color: #17794a; }
 .resumen-solicitud.mal { background: #fdeced; color: #a32b34; }
 
+.bloque-devolucion { border: 1px solid var(--gris-10); border-left: 3px solid var(--primario); border-radius: var(--radio); padding: 16px 18px; margin: 4px 0 18px; background: #fbfdfe; }
+.bloque-devolucion h3 { margin: 0 0 4px; font-size: 16px; }
+.lista-devolucion { list-style: none; padding: 0; margin: 8px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 6px; }
+.lista-devolucion li { display: flex; justify-content: space-between; gap: 10px; background: #fff; border: 1px solid var(--gris-10); border-radius: var(--radio); padding: 7px 12px; font-size: 13.5px; }
+.lista-devolucion strong { color: var(--primario); }
+
 /* Formulario Solicitud de Permisos emitido. Réplica del formulario institucional en papel. */
 .sp-hoja {
   --sp-azul: #005392;

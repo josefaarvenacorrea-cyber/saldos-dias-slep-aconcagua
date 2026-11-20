@@ -10,7 +10,7 @@
  * Vive aparte de la base de datos para poder probarlo solo.
  */
 
-import { esDiaHabil, esInterferiado, feriadoQueSigue, hayCalendarioPara, nombreFeriado } from './feriadosChile.ts';
+import { esDiaHabil, esInterferiado, habilesDesde, hayCalendarioPara, nombreFeriado } from './feriadosChile.ts';
 
 export type TipoPermiso = 'feriado' | 'goce' | 'compensatorio' | 'interferiado' | 'otros';
 
@@ -104,6 +104,43 @@ export function horasTexto(minutos: number): string {
   return `${signo}${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`;
 }
 
+/**
+ * Las horas del interferiado hay que devolverlas, y el acuerdo tiene que decir expresamente en qué
+ * días se van a recuperar y con qué distribución horaria. Esto arma ese calendario.
+ */
+export interface DiaRecuperacion {
+  fecha: string;
+  horas: number;
+}
+
+export interface Recuperacion {
+  /** Horas que se devuelven, que son las que se dejó de trabajar ese día. */
+  horas: number;
+  /** Cuántas horas extra se hacen cada día. */
+  horasPorDia: number;
+  /** Desde cuándo se empieza a devolver. */
+  desde: string;
+  dias: DiaRecuperacion[];
+}
+
+/** Reparte las horas a devolver en días hábiles seguidos, saltando fines de semana y feriados. */
+export function planRecuperacion(desde: string, horas: number, horasPorDia: number): DiaRecuperacion[] {
+  if (!(horas > 0) || !(horasPorDia > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(desde)) return [];
+  const cuantos = Math.ceil(horas / horasPorDia);
+  if (cuantos > 60) return [];
+  const fechas = habilesDesde(desde, cuantos);
+  let resta = horas;
+  return fechas.map((fecha) => {
+    const h = Math.min(horasPorDia, resta);
+    resta = Math.round((resta - h) * 100) / 100;
+    return { fecha, horas: Math.round(h * 100) / 100 };
+  });
+}
+
+export function totalRecuperado(dias: DiaRecuperacion[]): number {
+  return Math.round(dias.reduce((t, d) => t + d.horas, 0) * 100) / 100;
+}
+
 export interface Solicitud {
   tipo: TipoPermiso;
   dias: DiaPedido[];
@@ -111,6 +148,8 @@ export interface Solicitud {
   horaHasta: string;
   /** Nombre del archivo del certificado, cuando el tipo lo exige. */
   certificado: string | null;
+  /** Calendario de devolución, solo para el interferiado. */
+  recuperacion?: Recuperacion | null;
 }
 
 export interface Saldos {
@@ -176,6 +215,27 @@ export function revisar(s: Solicitud, saldos: Saldos): Revision {
         dias,
         minutos: 0,
       };
+    }
+    if (habiles.length !== 1) {
+      return { ok: false, error: 'El interferiado se pide de a un día.', dias, minutos: 0 };
+    }
+
+    // Sin plan de devolución no hay permiso: el acuerdo tiene que decir cuándo se recuperan las horas.
+    const r = s.recuperacion;
+    if (!r || !(r.horas > 0)) {
+      return { ok: false, error: 'Indica cuántas horas vas a devolver.', dias, minutos: 0 };
+    }
+    if (!(r.horasPorDia > 0)) {
+      return { ok: false, error: 'Indica cuántas horas extra vas a hacer cada día.', dias, minutos: 0 };
+    }
+    if (r.horasPorDia > r.horas) {
+      return { ok: false, error: 'Las horas por día no pueden superar el total que vas a devolver.', dias, minutos: 0 };
+    }
+    if (!r.dias.length) {
+      return { ok: false, error: 'Indica desde cuándo vas a devolver las horas.', dias, minutos: 0 };
+    }
+    if (totalRecuperado(r.dias) !== Math.round(r.horas * 100) / 100) {
+      return { ok: false, error: 'El calendario de devolución no suma las horas que tienes que devolver.', dias, minutos: 0 };
     }
   }
 

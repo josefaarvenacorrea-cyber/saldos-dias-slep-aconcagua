@@ -5,7 +5,7 @@ import { fechaCorta, fechaHoraChile } from '@/lib/fechas';
 import * as f from '@/lib/formato';
 import type { ActoFirma } from '@/lib/postergaciones';
 import type { Permiso } from '@/lib/permisos';
-import { CAUSALES_OTROS, esNoHabil, horasTexto, jornadaUnica } from '@/lib/reglasPermisos';
+import { CAUSALES_OTROS, esNoHabil, horasTexto, jornadaUnica, totalRecuperado } from '@/lib/reglasPermisos';
 
 /** Casilla del formulario, marcada con una X igual que en el papel. */
 function Casilla({ marcada }: { marcada: boolean }) {
@@ -54,6 +54,7 @@ export function DocumentoPermiso({ p, firmas = {} }: { p: Permiso; firmas?: Firm
   const primera = habiles[0]?.fecha ?? p.dias[0]?.fecha ?? null;
   const ultima = habiles[habiles.length - 1]?.fecha ?? p.dias[p.dias.length - 1]?.fecha ?? null;
   const porHoras = p.tipo === 'compensatorio';
+  const r = p.tipo === 'interferiado' ? p.recuperacion : null;
   const jornada = p.tipo === 'goce' ? jornadaUnica(p.dias) : null;
   const mezclada = p.tipo === 'goce' && jornada === null && habiles.length > 1;
   const resuelto = p.estado !== 'pendiente_jefatura';
@@ -188,7 +189,10 @@ export function DocumentoPermiso({ p, firmas = {} }: { p: Permiso; firmas?: Firm
       </h3>
       <div className="sp-tres">
         <div className="sp-caja">
-          <span className="sp-ranura sp-corta">{porHoras ? horasTexto(p.totalMinutos) : '—'}</span> N° Total de horas
+          <span className="sp-ranura sp-corta">
+            {porHoras ? horasTexto(p.totalMinutos) : r ? `${totalRecuperado(r.dias)}` : '—'}
+          </span>{' '}
+          N° Total de horas
         </div>
         <div className="sp-caja">
           <span className="sp-ranura sp-ancha">{porHoras ? p.horaDesde : '—'}</span> Desde
@@ -197,6 +201,13 @@ export function DocumentoPermiso({ p, firmas = {} }: { p: Permiso; firmas?: Firm
           <span className="sp-ranura sp-ancha">{porHoras ? p.horaHasta : '—'}</span> Hasta
         </div>
       </div>
+
+      {r && r.dias.length ? (
+        <p className="sp-detalle-dias">
+          <strong>Horas por recuperar:</strong> {totalRecuperado(r.dias)} horas, {r.horasPorDia} h extra por día, en{' '}
+          {r.dias.map((d) => fechaCorta(d.fecha)).join(' · ')}
+        </p>
+      ) : null}
 
       <div className="sp-aprueba">
         <span className="sp-tri" aria-hidden="true">

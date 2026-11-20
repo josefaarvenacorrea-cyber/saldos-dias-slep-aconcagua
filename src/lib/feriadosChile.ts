@@ -80,16 +80,42 @@ export function esDiaHabil(fecha: string): boolean {
   return dia !== 0 && dia !== 6 && !esFeriado(fecha);
 }
 
+/** Sábado o domingo, sin mirar si además es feriado. */
+export function esFinDeSemana(fecha: string): boolean {
+  const dia = aFecha(fecha).getDay();
+  return dia === 0 || dia === 6;
+}
+
 /**
- * Día interferiado: un día hábil justo antes de un feriado.
+ * Día interferiado: el día hábil que está justo antes de un feriado.
  *
- * Es la regla que define cuándo se puede pedir el permiso por interferiado, que es un permiso que
- * solo existe para esos días. Si el calendario no cubre el año, devuelve false, porque sin los
- * feriados de ese año no hay forma de saberlo.
+ * Esta es la regla que aplica el SLEP Aconcagua, y es más amplia que la del artículo 35 bis del
+ * Código del Trabajo, que pide que el día esté entre dos días no laborables (el "día sándwich").
+ * Con la regla legal, por ejemplo, el jueves 24 de diciembre de 2026 no sería interferiado, porque
+ * el miércoles 23 se trabaja. Si alguna vez se decide ceñirse a la definición legal, hay que
+ * cambiar esta función y nada más.
+ *
+ * El feriado que viene después tiene que caer de lunes a viernes: si cae sábado o domingo, el día
+ * anterior no sirve de puente, porque acá no se trabaja los fines de semana.
  */
 export function esInterferiado(fecha: string): boolean {
   if (!esDiaHabil(fecha)) return false;
-  return esFeriado(diaSiguiente(fecha));
+  const siguiente = diaSiguiente(fecha);
+  return esFeriado(siguiente) && !esFinDeSemana(siguiente);
+}
+
+/**
+ * Días hábiles seguidos, a partir de una fecha, para repartir las horas que hay que devolver.
+ * Salta fines de semana y feriados.
+ */
+export function habilesDesde(desde: string, cuantos: number): string[] {
+  const salida: string[] = [];
+  let cur = desde;
+  for (let i = 0; salida.length < cuantos && i < 400; i++) {
+    if (esDiaHabil(cur)) salida.push(cur);
+    cur = diaSiguiente(cur);
+  }
+  return salida;
 }
 
 /** El feriado al que da paso un día interferiado, para poder nombrarlo en pantalla. */

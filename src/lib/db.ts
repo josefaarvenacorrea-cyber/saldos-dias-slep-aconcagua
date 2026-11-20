@@ -96,6 +96,7 @@ create table if not exists permisos (
   detalle text,
   certificado text,
   dias jsonb not null default '[]'::jsonb,
+  recuperacion jsonb,
   total_dias numeric(5,1) not null default 0,
   hora_desde text,
   hora_hasta text,

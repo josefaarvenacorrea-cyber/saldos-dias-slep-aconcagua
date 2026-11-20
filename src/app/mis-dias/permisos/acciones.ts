@@ -6,7 +6,17 @@ import { fichaDe } from '@/lib/datos';
 import { firmaDe } from '@/lib/firmas';
 import { jefaturaDe } from '@/lib/jefaturas';
 import { crearPermiso, saldosDisponibles } from '@/lib/permisos';
-import { revisar, totalDias, totalMinutos, type CausalOtros, type DiaPedido, type Jornada, type TipoPermiso } from '@/lib/reglasPermisos';
+import {
+  planRecuperacion,
+  revisar,
+  totalDias,
+  totalMinutos,
+  type CausalOtros,
+  type DiaPedido,
+  type Jornada,
+  type Recuperacion,
+  type TipoPermiso,
+} from '@/lib/reglasPermisos';
 import { formatearRut } from '@/lib/rut';
 import { requerirUsuario } from '@/lib/sesion';
 
@@ -53,9 +63,24 @@ export async function pedirPermiso(_: EstadoPermisoForm, form: FormData): Promis
   const horaHasta = String(form.get('horaHasta') ?? '');
   const certificado = String(form.get('certificado') ?? '').trim() || null;
 
+  // El plan de devolución se vuelve a calcular en el servidor a partir de los tres datos que lo
+  // definen, para no confiar en el calendario que mandó la pantalla.
+  let recuperacion: Recuperacion | null = null;
+  if (tipo === 'interferiado') {
+    const horas = Number(String(form.get('horasDevolver') ?? '').replace(',', '.'));
+    const horasPorDia = Number(String(form.get('horasPorDia') ?? '').replace(',', '.'));
+    const desde = String(form.get('recuperarDesde') ?? '');
+    recuperacion = {
+      horas: Number.isFinite(horas) ? horas : 0,
+      horasPorDia: Number.isFinite(horasPorDia) ? horasPorDia : 0,
+      desde,
+      dias: planRecuperacion(desde, horas, horasPorDia),
+    };
+  }
+
   // Se revisa de nuevo en el servidor contra el saldo real: la pantalla puede venir manipulada.
   const { saldos } = await saldosDisponibles(u.rut);
-  const revision = revisar({ tipo, dias, horaDesde, horaHasta, certificado }, saldos);
+  const revision = revisar({ tipo, dias, horaDesde, horaHasta, certificado, recuperacion }, saldos);
   if (!revision.ok) return { error: revision.error ?? 'La solicitud tiene un problema.' };
 
   const jefatura = await jefaturaDe(u.rut);
@@ -84,6 +109,7 @@ export async function pedirPermiso(_: EstadoPermisoForm, form: FormData): Promis
     detalle: tipo === 'otros' ? String(form.get('detalle') ?? '').trim() || null : null,
     certificado,
     dias,
+    recuperacion,
     totalDias: porHoras ? 0 : totalDias(dias),
     horaDesde: porHoras ? horaDesde : null,
     horaHasta: porHoras ? horaHasta : null,

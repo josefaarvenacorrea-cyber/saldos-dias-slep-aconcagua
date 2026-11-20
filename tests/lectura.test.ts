@@ -174,8 +174,18 @@ test('Interferiado: solo el día hábil que está justo antes de un feriado', as
   const c = await import('../src/lib/feriadosChile.ts');
   const saldos = { feriado: 15, goce: 2.5, compensatorioMin: 450 };
   const base = { horaDesde: '08:30', horaHasta: '11:30', certificado: null };
-  const pedir = (desde: string, hasta = desde) =>
-    r.revisar({ ...base, tipo: 'interferiado' as const, dias: r.diasDelRango(desde, hasta, 'interferiado') }, saldos);
+  // Devolver 8 horas a razón de 1 hora extra por día, empezando el miércoles 9 de diciembre.
+  const plan = (desde = '2026-12-09', horas = 8, porDia = 1) => ({
+    horas,
+    horasPorDia: porDia,
+    desde,
+    dias: r.planRecuperacion(desde, horas, porDia),
+  });
+  const pedir = (desde: string, recuperacion = plan(), hasta = desde) =>
+    r.revisar(
+      { ...base, tipo: 'interferiado' as const, dias: r.diasDelRango(desde, hasta, 'interferiado'), recuperacion },
+      saldos,
+    );
 
   // Lunes 7 de diciembre de 2026, justo antes de la Inmaculada Concepción del martes 8.
   assert.equal(c.esInterferiado('2026-12-07'), true);
@@ -183,6 +193,10 @@ test('Interferiado: solo el día hábil que está justo antes de un feriado', as
 
   // Jueves 24 de diciembre, justo antes de Navidad.
   assert.equal(c.esInterferiado('2026-12-24'), true);
+
+  // Un feriado que cae sábado no sirve de puente: acá no se trabaja los sábados.
+  assert.equal(c.esFeriado('2026-10-31'), true);
+  assert.equal(c.esInterferiado('2026-10-30'), false);
 
   // Un lunes cualquiera no lo es.
   assert.equal(c.esInterferiado('2026-11-23'), false);
@@ -204,6 +218,42 @@ test('Interferiado: solo el día hábil que está justo antes de un feriado', as
   // Sin calendario del año no se adivina.
   assert.equal(c.hayCalendarioPara('2031-05-05'), false);
   assert.match(pedir('2031-05-05').error ?? '', /feriados de ese año/);
+});
+
+test('Interferiado: las horas se devuelven y el calendario tiene que cuadrar', async () => {
+  const r = await import('../src/lib/reglasPermisos.ts');
+  const saldos = { feriado: 15, goce: 2.5, compensatorioMin: 450 };
+  const base = { horaDesde: '08:30', horaHasta: '11:30', certificado: null };
+  const dias = r.diasDelRango('2026-12-07', '2026-12-07', 'interferiado');
+  const pedir = (recuperacion: unknown) =>
+    r.revisar({ ...base, tipo: 'interferiado' as const, dias, recuperacion } as never, saldos);
+
+  // 8 horas a 1 por día: ocho días hábiles seguidos, saltando el fin de semana.
+  const ocho = r.planRecuperacion('2026-12-09', 8, 1);
+  assert.equal(ocho.length, 8);
+  assert.equal(r.totalRecuperado(ocho), 8);
+  assert.deepEqual(
+    ocho.map((d) => d.fecha),
+    ['2026-12-09', '2026-12-10', '2026-12-11', '2026-12-14', '2026-12-15', '2026-12-16', '2026-12-17', '2026-12-18'],
+  );
+
+  // El último día lleva el resto cuando no es múltiplo exacto.
+  const siete = r.planRecuperacion('2026-12-09', 7, 2);
+  assert.equal(siete.length, 4);
+  assert.deepEqual(siete.map((d) => d.horas), [2, 2, 2, 1]);
+  assert.equal(r.totalRecuperado(siete), 7);
+
+  // El plan salta los feriados: empezando el lunes 7, el martes 8 no se usa.
+  assert.equal(r.planRecuperacion('2026-12-07', 2, 1)[1].fecha, '2026-12-09');
+
+  // Sin plan, o con un plan que no suma, no se puede pedir.
+  assert.match(pedir(null).error ?? '', /cuántas horas vas a devolver/);
+  assert.match(pedir({ horas: 8, horasPorDia: 0, desde: '2026-12-09', dias: [] }).error ?? '', /horas extra vas a hacer/);
+  assert.match(
+    pedir({ horas: 8, horasPorDia: 1, desde: '2026-12-09', dias: r.planRecuperacion('2026-12-09', 5, 1) }).error ?? '',
+    /no suma las horas/,
+  );
+  assert.equal(pedir({ horas: 8, horasPorDia: 1, desde: '2026-12-09', dias: ocho }).ok, true);
 });
 
 test('Días hábiles que quedan en el año, desde mañana', () => {

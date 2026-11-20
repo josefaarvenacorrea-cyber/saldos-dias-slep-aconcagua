@@ -12,6 +12,8 @@ import {
   esPorHoras,
   horasTexto,
   motivoNoHabil,
+  planRecuperacion,
+  totalRecuperado,
   nombreTipo,
   revisar,
   TIPOS,
@@ -45,6 +47,10 @@ export function SolicitarPermiso({ saldos, jefaturaNombre, hoy }: { saldos: Sald
   const [detalle, setDetalle] = useState('');
   const [certificado, setCertificado] = useState('');
   const [confirmando, setConfirmando] = useState(false);
+  // Devolución de horas del interferiado: cuántas, cuántas por día y desde cuándo.
+  const [horasDevolver, setHorasDevolver] = useState('8');
+  const [horasPorDia, setHorasPorDia] = useState('1');
+  const [recuperarDesde, setRecuperarDesde] = useState('');
 
   const porHoras = esPorHoras(tipo);
   // El interferiado solo existe para días hábiles pegados a un feriado, así que en vez de dejar
@@ -54,9 +60,21 @@ export function SolicitarPermiso({ saldos, jefaturaNombre, hoy }: { saldos: Sald
     () => (desde && hasta ? diasDelRango(desde, porHoras ? desde : hasta, tipo, jornadas) : []),
     [desde, hasta, tipo, jornadas, porHoras],
   );
+  const recuperacion = useMemo(() => {
+    if (tipo !== 'interferiado') return null;
+    const h = Number(horasDevolver.replace(',', '.'));
+    const hd = Number(horasPorDia.replace(',', '.'));
+    return {
+      horas: Number.isFinite(h) ? h : 0,
+      horasPorDia: Number.isFinite(hd) ? hd : 0,
+      desde: recuperarDesde,
+      dias: planRecuperacion(recuperarDesde, h, hd),
+    };
+  }, [tipo, horasDevolver, horasPorDia, recuperarDesde]);
+
   const revision = useMemo(
-    () => revisar({ tipo, dias, horaDesde, horaHasta, certificado: certificado || null }, saldos),
-    [tipo, dias, horaDesde, horaHasta, certificado, saldos],
+    () => revisar({ tipo, dias, horaDesde, horaHasta, certificado: certificado || null, recuperacion }, saldos),
+    [tipo, dias, horaDesde, horaHasta, certificado, saldos, recuperacion],
   );
 
   function cambiarTipo(t: TipoPermiso) {
@@ -89,6 +107,9 @@ export function SolicitarPermiso({ saldos, jefaturaNombre, hoy }: { saldos: Sald
       <input type="hidden" name="causal" value={tipo === 'otros' ? causal : ''} />
       <input type="hidden" name="detalle" value={tipo === 'otros' ? detalle : ''} />
       <input type="hidden" name="certificado" value={certificado} />
+      <input type="hidden" name="horasDevolver" value={horasDevolver} />
+      <input type="hidden" name="horasPorDia" value={horasPorDia} />
+      <input type="hidden" name="recuperarDesde" value={recuperarDesde} />
 
       <div className="campo">
         <span className="etiqueta-campo">Permiso por solicitar</span>
@@ -163,6 +184,14 @@ export function SolicitarPermiso({ saldos, jefaturaNombre, hoy }: { saldos: Sald
               onChange={(e) => {
                 setDesde(e.target.value);
                 setHasta(e.target.value);
+                const elegido = interferiados.find((i) => i.fecha === e.target.value);
+                if (elegido && !recuperarDesde) {
+                  const [a, m, d] = elegido.feriado.split('-').map(Number);
+                  const sig = new Date(a, m - 1, d + 1);
+                  setRecuperarDesde(
+                    `${sig.getFullYear()}-${String(sig.getMonth() + 1).padStart(2, '0')}-${String(sig.getDate()).padStart(2, '0')}`,
+                  );
+                }
                 setConfirmando(false);
               }}
             >
@@ -180,7 +209,53 @@ export function SolicitarPermiso({ saldos, jefaturaNombre, hoy }: { saldos: Sald
             <p>Este permiso solo se puede pedir en un día hábil que esté justo antes de un feriado.</p>
           </Alerta>
         )
-      ) : (
+      ) : null}
+
+      {tipo === 'interferiado' && desde ? (
+        <section className="bloque-devolucion">
+          <h3>Cómo vas a devolver las horas</h3>
+          <p className="sub">
+            El interferiado se toma con goce de remuneraciones, pero las horas de ese día se recuperan después. Tienes que
+            dejar escrito en qué días y con qué distribución.
+          </p>
+          <div className="filtros">
+            <div className="campo">
+              <label htmlFor="hdev">Horas que trabajas ese día</label>
+              <input id="hdev" type="number" min="1" max="12" step="0.5" value={horasDevolver}
+                onChange={(e) => { setHorasDevolver(e.target.value); setConfirmando(false); }} required />
+            </div>
+            <div className="campo">
+              <label htmlFor="hpd">Horas extra por día</label>
+              <input id="hpd" type="number" min="0.5" max="8" step="0.5" value={horasPorDia}
+                onChange={(e) => { setHorasPorDia(e.target.value); setConfirmando(false); }} required />
+            </div>
+            <div className="campo">
+              <label htmlFor="rdesde">Desde cuándo</label>
+              <input id="rdesde" type="date" value={recuperarDesde}
+                onChange={(e) => { setRecuperarDesde(e.target.value); setConfirmando(false); }} required />
+            </div>
+          </div>
+          {recuperacion && recuperacion.dias.length ? (
+            <>
+              <p className="sub">
+                Devuelves <strong>{totalRecuperado(recuperacion.dias)} horas</strong> en{' '}
+                {recuperacion.dias.length} {recuperacion.dias.length === 1 ? 'día' : 'días'} hábiles, saltando fines de
+                semana y feriados.
+              </p>
+              <ul className="lista-devolucion">
+                {recuperacion.dias.map((d) => (
+                  <li key={d.fecha}>
+                    <span>{legible(d.fecha)}</span>
+                    <strong>+{d.horas} h</strong>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </section>
+      ) : null}
+
+      {tipo !== 'interferiado' ? (
       <div className="filtros">
         <div className="campo">
           <label htmlFor="desde">{porHoras ? 'Fecha' : 'Desde'}</label>
@@ -224,7 +299,7 @@ export function SolicitarPermiso({ saldos, jefaturaNombre, hoy }: { saldos: Sald
           </>
         )}
       </div>
-      )}
+      ) : null}
 
       {!porHoras && dias.length && tipo !== 'interferiado' ? (
         <div className="campo">
@@ -277,6 +352,14 @@ export function SolicitarPermiso({ saldos, jefaturaNombre, hoy }: { saldos: Sald
             <br />
             <strong>Detalle:</strong> {resumen}
             <br />
+            {tipo === 'interferiado' && recuperacion ? (
+              <>
+                <strong>Devuelves:</strong> {totalRecuperado(recuperacion.dias)} horas, {recuperacion.horasPorDia} h extra
+                por día, del {legible(recuperacion.dias[0]?.fecha ?? '')} al{' '}
+                {legible(recuperacion.dias[recuperacion.dias.length - 1]?.fecha ?? '')}
+                <br />
+              </>
+            ) : null}
             <strong>Jefatura:</strong> {jefaturaNombre}
           </div>
           <p className="confirmacion-aviso">
