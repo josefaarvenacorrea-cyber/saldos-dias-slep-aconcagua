@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import { Marco } from '@/componentes/Marco';
 import { Alerta } from '@/componentes/Alerta';
 import { fechaHoraChile } from '@/lib/fechas';
+import { permisoPorCodigo, TEXTO_ESTADO_PERMISO } from '@/lib/permisos';
 import { porCodigo, TEXTO_ESTADO } from '@/lib/postergaciones';
+import { horasTexto, nombreTipo } from '@/lib/reglasPermisos';
 import * as f from '@/lib/formato';
 import { usuarioActual } from '@/lib/sesion';
 
@@ -16,7 +18,7 @@ export default async function Verificar({ searchParams }: { searchParams: Promis
   const u = await usuarioActual();
   const { codigo } = await searchParams;
   const buscado = (codigo ?? '').trim().toUpperCase();
-  const p = buscado ? await porCodigo(buscado) : null;
+  const [p, permiso] = buscado ? await Promise.all([porCodigo(buscado), permisoPorCodigo(buscado)]) : [null, null];
 
   return (
     <Marco usuario={u}>
@@ -40,13 +42,64 @@ export default async function Verificar({ searchParams }: { searchParams: Promis
             </div>
           </form>
 
-          {buscado && !p ? (
+          {buscado && !p && !permiso ? (
             <Alerta tipo="error" titulo="No encontramos ese código">
               <p>
                 Revisa que esté bien escrito. Si el documento dice ser de esta plataforma y el código no existe, no fue
                 emitido aquí.
               </p>
             </Alerta>
+          ) : null}
+
+          {permiso ? (
+            <>
+              <Alerta
+                tipo={permiso.estado === 'autorizado' ? 'exito' : 'info'}
+                titulo={permiso.estado === 'autorizado' ? 'Documento auténtico' : 'El código existe, pero el permiso no está aprobado'}
+              >
+                <p>
+                  Formulario de solicitud de permisos de {permiso.ficha.nombre}, RUN {permiso.ficha.rutTexto}.{' '}
+                  {TEXTO_ESTADO_PERMISO[permiso.estado]}.
+                </p>
+              </Alerta>
+              <table className="tabla">
+                <tbody>
+                  <tr>
+                    <th scope="row">Código</th>
+                    <td>{permiso.codigo}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Tipo de permiso</th>
+                    <td>
+                      {nombreTipo(permiso.tipo)}
+                      {permiso.causal ? ` · ${permiso.causal}` : ''}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Cantidad</th>
+                    <td>
+                      {permiso.tipo === 'compensatorio' ? `${horasTexto(permiso.totalMinutos)} hrs` : f.dias(permiso.totalDias)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Firma del funcionario</th>
+                    <td>
+                      {permiso.firmaSolicitud
+                        ? `${permiso.firmaSolicitud.nombre} · ${fechaHoraChile(permiso.firmaSolicitud.en)}`
+                        : 'Sin firmar'}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Firma de la jefatura</th>
+                    <td>
+                      {permiso.firmaJefatura
+                        ? `${permiso.firmaJefatura.nombre} · ${fechaHoraChile(permiso.firmaJefatura.en)}`
+                        : 'Sin firmar'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </>
           ) : null}
 
           {p ? (

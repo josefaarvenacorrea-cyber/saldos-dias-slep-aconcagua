@@ -85,6 +85,30 @@ create table if not exists postergaciones (
   creada_en timestamptz not null default now(),
   actualizada_en timestamptz not null default now()
 );
+create table if not exists permisos (
+  id serial primary key,
+  codigo text unique not null,
+  rut text not null,
+  jefatura_rut text,
+  ficha jsonb not null default '{}'::jsonb,
+  tipo text not null check (tipo in ('feriado', 'goce', 'compensatorio', 'interferiado', 'otros')),
+  causal text,
+  detalle text,
+  certificado text,
+  dias jsonb not null default '[]'::jsonb,
+  total_dias numeric(5,1) not null default 0,
+  hora_desde text,
+  hora_hasta text,
+  total_minutos integer not null default 0,
+  estado text not null default 'pendiente_jefatura'
+    check (estado in ('pendiente_jefatura', 'autorizado', 'rechazado')),
+  firma_solicitud jsonb,
+  firma_jefatura jsonb,
+  creada_en timestamptz not null default now(),
+  actualizada_en timestamptz not null default now()
+);
+create index if not exists permisos_por_rut on permisos (rut);
+create index if not exists permisos_por_jefatura on permisos (jefatura_rut);
 create index if not exists postergaciones_por_rut on postergaciones (rut);
 create index if not exists postergaciones_por_jefatura on postergaciones (jefatura_rut);
 create unique index if not exists postergaciones_una_por_anio on postergaciones (rut, anio)

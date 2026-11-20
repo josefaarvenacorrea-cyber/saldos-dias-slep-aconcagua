@@ -111,6 +111,65 @@ test('Jefaturas: se empareja el nombre escrito en la Dotación, aunque esté inc
   assert.deepEqual(r('Alejandra Meza Veas', '11111111'), { motivo: 'si_mismo' });
 });
 
+test('Permisos: cada tipo con su regla de fraccionamiento y su tope de saldo', async () => {
+  const r = await import('../src/lib/reglasPermisos.ts');
+  const saldos = { feriado: 15, goce: 2.5, compensatorioMin: 450 }; // 450 min = 7:30
+
+  // Lunes 23 a miércoles 25 de noviembre de 2026.
+  type Tipo = 'feriado' | 'goce' | 'compensatorio' | 'interferiado' | 'otros';
+  const rango = (tipo: Tipo, previas = {}) => r.diasDelRango('2026-11-23', '2026-11-25', tipo, previas);
+
+  // Feriado legal: todos los días quedan completos, aunque se intente media jornada.
+  const feriado = rango('feriado', { '2026-11-24': 'am' as const });
+  assert.equal(r.totalDias(feriado), 3);
+  assert.ok(feriado.every((d) => d.jornada === 'completa'));
+
+  // Con goce: medio día vale 0,5, así que se llega a 2,5.
+  const goce = rango('goce', { '2026-11-25': 'pm' as const });
+  assert.equal(r.totalDias(goce), 2.5);
+  assert.equal(r.jornadaUnica(goce), null); // jornadas mezcladas: el papel no puede expresarlo
+  assert.equal(r.jornadaUnica(rango('goce')), 'completa');
+
+  // Un solo medio día son 0,5.
+  assert.equal(r.totalDias(r.diasDelRango('2026-11-23', '2026-11-23', 'goce', { '2026-11-23': 'am' })), 0.5);
+
+  // El fin de semana no se descuenta: sábado 28 y domingo 29 suman 0.
+  assert.equal(r.totalDias(r.diasDelRango('2026-11-28', '2026-11-29', 'goce')), 0);
+
+  const base = { horaDesde: '08:30', horaHasta: '11:30', certificado: null };
+
+  // Con goce pasando el saldo de 2,5.
+  const exceso = r.revisar({ ...base, tipo: 'goce', dias: r.diasDelRango('2026-11-23', '2026-11-26', 'goce') }, saldos);
+  assert.equal(exceso.ok, false);
+  assert.match(exceso.error ?? '', /saldo disponible es de 2\.5/);
+
+  // Con goce dentro del saldo.
+  assert.equal(r.revisar({ ...base, tipo: 'goce', dias: goce }, saldos).ok, true);
+
+  // Feriado legal con medio día: lo rechaza aunque alcance el saldo.
+  const medio = r.diasDelRango('2026-11-23', '2026-11-23', 'goce', { '2026-11-23': 'am' });
+  const malFeriado = r.revisar({ ...base, tipo: 'feriado', dias: medio }, saldos);
+  assert.equal(malFeriado.ok, false);
+  assert.match(malFeriado.error ?? '', /días completos/);
+
+  // Compensatorio: por horas y dentro del saldo.
+  const unDia = r.diasDelRango('2026-11-23', '2026-11-23', 'compensatorio');
+  assert.equal(r.revisar({ ...base, tipo: 'compensatorio', dias: unDia }, saldos).minutos, 180);
+  assert.equal(r.revisar({ ...base, tipo: 'compensatorio', dias: unDia, horaHasta: '17:00' }, saldos).ok, false);
+  assert.equal(r.revisar({ ...base, tipo: 'compensatorio', dias: unDia, horaHasta: '08:00' }, saldos).ok, false);
+  assert.equal(r.horasTexto(450), '7:30');
+
+  // Otros permisos: sin certificado no se puede enviar.
+  const sinCert = r.revisar({ ...base, tipo: 'otros', dias: rango('otros') }, saldos);
+  assert.equal(sinCert.ok, false);
+  assert.match(sinCert.error ?? '', /certificado/);
+  assert.equal(r.revisar({ ...base, tipo: 'otros', dias: rango('otros'), certificado: 'cert.pdf' }, saldos).ok, true);
+
+  // Interferiado: se registra, pero todavía no tiene tope automático.
+  assert.equal(r.descuentaSaldo('interferiado'), false);
+  assert.equal(r.revisar({ ...base, tipo: 'interferiado', dias: rango('interferiado') }, saldos).ok, true);
+});
+
 test('Días hábiles que quedan en el año, desde mañana', () => {
   assert.equal(diasHabilesRestantesDelAnio('2026-10-27'), 45);
   assert.equal(diasHabilesRestantesDelAnio('2026-12-30'), 1);

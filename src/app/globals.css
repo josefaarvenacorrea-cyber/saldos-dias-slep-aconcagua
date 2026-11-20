@@ -398,6 +398,91 @@ details.desplegable[open] > summary { border-bottom: 1px solid var(--gris-10); m
 .confirmacion-detalle { background: #f6f9fc; border-radius: var(--radio); padding: 12px 14px; font-size: 14px; line-height: 1.8; margin-bottom: 14px; }
 .confirmacion-aviso { font-size: 13px; line-height: 1.55; color: var(--gris-40); margin: 0 0 16px; }
 
+/* Pantalla para pedir un permiso. */
+.rejilla-tipos { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 9px; }
+.tarjeta-tipo { font: inherit; text-align: left; background: #fff; border: 1px solid var(--gris-10); border-radius: var(--radio); padding: 12px 14px; cursor: pointer; display: grid; gap: 3px; color: inherit; }
+.tarjeta-tipo:hover { border-color: var(--primario); }
+.tarjeta-tipo.activa { border-color: var(--primario); background: #f2f8fd; box-shadow: 0 0 0 1px var(--primario) inset; }
+.tarjeta-tipo strong { font-size: 14px; line-height: 1.3; }
+.tarjeta-tipo span { font-size: 12.5px; color: var(--gris-40); }
+.lista-dias { list-style: none; padding: 0; margin: 0; border: 1px solid var(--gris-10); border-radius: var(--radio); overflow: hidden; }
+.lista-dias li { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--gris-10); }
+.lista-dias li:last-child { border-bottom: none; }
+.lista-dias li.no-habil { background: #f7f9fb; color: var(--gris-40); }
+.fecha-dia { flex: 1 1 190px; font-size: 14px; font-weight: 600; }
+.opcion.chica { padding: 5px 12px; font-size: 12.5px; border-radius: 999px; }
+.resumen-solicitud { border-radius: var(--radio); padding: 13px 16px; font-size: 14px; line-height: 1.6; margin: 6px 0 16px; }
+.resumen-solicitud.bien { background: #e6f4ec; color: #17794a; }
+.resumen-solicitud.mal { background: #fdeced; color: #a32b34; }
+
+/* Formulario Solicitud de Permisos emitido. Réplica del formulario institucional en papel. */
+.sp-hoja {
+  --sp-azul: #005392;
+  --sp-azul-claro: #0f69b3;
+  background: #fff;
+  color: #20292f;
+  border: 1px solid var(--gris-10);
+  border-radius: var(--radio);
+  padding: 24px 28px 0;
+  margin: 8px 0 24px;
+  max-width: 820px;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.sp-encabezado { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+.sp-encabezado img { width: auto; height: auto; }
+.sp-logo-izq { max-height: 60px; max-width: 66px; }
+.sp-logo-der { margin-left: auto; max-height: 40px; max-width: 150px; }
+.sp-titulo { font-size: 18px; font-weight: 800; font-style: italic; color: var(--sp-azul-claro); }
+.sp-caja { border: 1.6px solid var(--sp-azul); border-radius: 11px; }
+.sp-identificacion { margin-bottom: 14px; }
+.sp-fila { display: flex; border-bottom: 1.2px solid var(--sp-azul); }
+.sp-fila:last-child { border-bottom: none; }
+.sp-celda { flex: 1; padding: 5px 11px; display: flex; gap: 7px; align-items: baseline; min-width: 0; }
+.sp-celda + .sp-celda { border-left: 1.2px solid var(--sp-azul); }
+.sp-k { color: var(--sp-azul); font-weight: 600; white-space: nowrap; }
+.sp-v { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-seccion { font-size: 13px; font-weight: 800; font-style: italic; color: var(--sp-azul-claro); text-transform: uppercase; margin: 0 0 6px; }
+.sp-seccion small { display: block; font-size: 10.5px; font-weight: 700; text-transform: none; }
+.sp-columnas { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 12px; }
+.sp-col-izq { flex: 1 1 52%; min-width: 0; }
+.sp-col-der { flex: 1 1 44%; min-width: 0; padding-top: 4px; }
+.sp-lista, .sp-otros, .sp-jornada { padding: 8px 12px; }
+.sp-otros { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.sp-otros-titulo { font-size: 12px; font-weight: 800; color: var(--sp-azul); text-align: center; margin-bottom: 4px; }
+.sp-nota-cert { font-size: 9.5px; color: var(--sp-azul); font-style: italic; margin: 4px 0 0; }
+.sp-opcion { display: flex; gap: 8px; align-items: center; padding: 3px 0; font-size: 11.5px; }
+.sp-chk { display: inline-block; width: 13px; height: 13px; border: 1.4px solid var(--sp-azul); border-radius: 3px; flex: none; position: relative; }
+.sp-chk.marcada::after { content: "X"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: var(--sp-azul); line-height: 1; }
+.sp-tres { display: flex; gap: 14px; margin-bottom: 8px; }
+.sp-tres .sp-caja { flex: 1; padding: 8px 12px; display: flex; align-items: center; gap: 9px; min-height: 48px; }
+.sp-ranura { border: 1.4px solid var(--sp-azul); border-radius: 7px; min-height: 26px; display: grid; place-items: center; padding: 3px 9px; font-weight: 700; font-size: 12px; }
+.sp-corta { min-width: 42px; }
+.sp-ancha { min-width: 110px; }
+.sp-detalle-dias { font-size: 9.5px; line-height: 1.5; margin: 0 0 10px; }
+.sp-detalle-dias strong { color: var(--sp-azul); }
+.sp-jornada { display: flex; gap: 26px; width: 66%; margin-bottom: 10px; }
+.sp-aprueba { display: flex; align-items: flex-end; gap: 9px; margin-bottom: 7px; }
+.sp-tri { color: var(--sp-azul); font-size: 13px; line-height: 1; }
+.sp-aprueba-lab { font-size: 11.5px; font-weight: 800; color: var(--sp-azul); }
+.sp-si-no { display: flex; gap: 11px; }
+.sp-si-no > span { display: grid; justify-items: center; gap: 2px; font-size: 9.5px; font-weight: 700; color: var(--sp-azul); }
+.sp-firmas { display: flex; gap: 18px; padding: 12px 16px 10px; min-height: 112px; }
+.sp-firma-mitad { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.sp-firma-mitad + .sp-firma-mitad { border-left: 1px dashed #b9cbda; padding-left: 18px; }
+.sp-firma-img { height: 44px; display: flex; align-items: flex-end; }
+.sp-firma-img img { max-height: 44px; max-width: 190px; }
+.sp-sin-firma { font-size: 10px; color: #98a6b2; font-style: italic; align-self: center; }
+.sp-acto { border-top: 1px solid #c6d4e0; padding-top: 4px; margin-top: 3px; font-size: 8.4px; line-height: 1.45; color: #2a3a47; }
+.sp-acto strong { display: block; color: #17794a; letter-spacing: .04em; font-size: 8.2px; }
+.sp-codigo { font-family: Consolas, ui-monospace, monospace; font-weight: 700; color: var(--sp-azul); }
+.sp-firma-pie { font-size: 11px; font-weight: 800; color: var(--sp-azul); margin-top: auto; padding-top: 6px; }
+.sp-verificacion { font-size: 8.4px; color: #5b6670; line-height: 1.5; border-top: 1px solid #e3eaf0; margin-top: 10px; padding-top: 7px; }
+.sp-pie { display: flex; height: 16px; margin: 10px -28px 0; }
+.sp-barra { flex: 1; background: var(--sp-azul); }
+.sp-marcas { display: flex; gap: 4px; padding-right: 4px; background: var(--sp-azul); }
+.sp-marcas i { width: 7px; background: #fff; display: block; }
+
 /* Bloque de autorización bajo cada firma del documento. */
 .fp-acto { display: block; font-size: 8.4px; line-height: 1.45; color: #2a3a47; text-align: left; margin-top: 5px; border-top: 1px solid #c6d4e0; padding-top: 4px; }
 .fp-acto strong { display: block; color: #17794a; letter-spacing: .04em; font-size: 8.2px; }

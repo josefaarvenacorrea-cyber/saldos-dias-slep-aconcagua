@@ -8,11 +8,12 @@ import { funcionariosACargo } from './jefaturas.ts';
 export async function enlacesDe(rut: string | null) {
   const enlaces = [
     { href: '/mis-dias', texto: 'Mis días' },
+    { href: '/mis-dias/permisos', texto: 'Mis permisos' },
     { href: '/mi-firma', texto: 'Mi firma' },
     { href: '/cambiar-clave', texto: 'Cambiar contraseña' },
   ];
   if (rut && (await funcionariosACargo(rut)).length) {
-    enlaces.splice(1, 0, { href: '/autorizaciones', texto: 'Autorizaciones' });
+    enlaces.splice(2, 0, { href: '/autorizaciones', texto: 'Autorizaciones' });
   }
   return enlaces;
 }
