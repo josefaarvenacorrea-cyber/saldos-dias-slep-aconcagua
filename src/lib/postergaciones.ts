@@ -1,6 +1,7 @@
 import 'server-only';
 import { consulta, auditar } from './db.ts';
 import { PROCESO_POSTERGACION } from './postergacion.ts';
+import type { Cursor } from './integracion.ts';
 
 /**
  * Solicitudes de postergación de feriado legal, con las tres secciones del formulario:
@@ -142,6 +143,29 @@ export async function respondidasPorJefatura(rutJefatura: string): Promise<Poste
       where jefatura_rut = $1 and estado <> 'pendiente_jefatura' order by actualizada_en desc limit 100`,
     [rutJefatura],
   );
+  return filas.map(desdeFila);
+}
+
+/**
+ * Solicitudes con el proceso ya cerrado, en orden de cuándo se cerraron, para que el flujo de
+ * Power Automate las tome de a tandas sin repetir ni saltarse ninguna.
+ */
+export async function postergacionesResueltas(desde: Cursor | null, limite: number): Promise<Postergacion[]> {
+  const estados = "('completa', 'sin_postergacion', 'desistida')";
+  // Igual que en los permisos: el orden por fecha e id evita empates y que el flujo se salte alguna.
+  const filas = desde
+    ? await consulta<Fila>(
+        `select ${COLUMNAS} from postergaciones
+          where estado in ${estados} and (actualizada_en, id) > ($1, $2)
+          order by actualizada_en, id limit $3`,
+        [desde.en, desde.id, limite],
+      )
+    : await consulta<Fila>(
+        `select ${COLUMNAS} from postergaciones
+          where estado in ${estados}
+          order by actualizada_en, id limit $1`,
+        [limite],
+      );
   return filas.map(desdeFila);
 }
 

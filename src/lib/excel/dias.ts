@@ -56,6 +56,8 @@ export async function leerDias(buffer: ArrayBuffer | Uint8Array): Promise<Result
     rut: columna(mS, 'RUT-DV', 'SALDOS'),
     nombre: columna(mS, 'NOMBRE COMPLETO', 'SALDOS'),
     area: columnaOpcional(mS, 'ÁREA/SUBDIRECCIÓN', 'AREA/SUBDIRECCION'),
+    // El programa lo necesita el flujo de Power Automate para escribir la fila en "Detalle uso".
+    programa: columnaOpcional(mS, 'PROGRAMA'),
     admIni: columna(mS, `${G_ADM}|SALDO INICIAL DÍAS ADMINISTRATIVOS`, 'SALDOS'),
     admMes: MESES.map((m) => columna(mS, `${G_ADM}|${m}`, 'SALDOS')),
     flAcum: columna(mS, `${G_FL}|DÍAS ACUMULADOS AÑO ANTERIOR`, 'SALDOS'),
@@ -103,6 +105,7 @@ export async function leerDias(buffer: ArrayBuffer | Uint8Array): Promise<Result
       rutTexto: limpiarRut(rutTexto),
       nombre,
       area: c.area ? texto(valor(fila.getCell(c.area))) : '',
+      programa: c.programa ? texto(valor(fila.getCell(c.programa))) : '',
       anio: 0,
       administrativos: { inicial: Number.isNaN(admIni) ? 0 : admIni, usados: 0, saldo: 0, usadosSegunResumen: 0 },
       feriadoLegal: {

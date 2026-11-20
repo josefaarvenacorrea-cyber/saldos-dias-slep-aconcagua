@@ -3,6 +3,7 @@ import { auditar, consulta } from './db.ts';
 import { fichaDe } from './datos.ts';
 import type { ActoFirma } from './postergaciones.ts';
 import type { CausalOtros, DiaPedido, Recuperacion, Saldos, TipoPermiso } from './reglasPermisos.ts';
+import type { Cursor } from './integracion.ts';
 
 /**
  * Solicitudes de permiso del "Formulario Solicitud de Permisos": el funcionario pide y firma,
@@ -178,6 +179,29 @@ export async function todosLosPermisos(desde?: string): Promise<Permiso[]> {
   const filas = desde
     ? await consulta<Fila>(`select ${COLUMNAS} from permisos where creada_en >= $1 order by creada_en desc`, [desde])
     : await consulta<Fila>(`select ${COLUMNAS} from permisos order by creada_en desc limit 500`);
+  return filas.map(desdeFila);
+}
+
+/**
+ * Permisos ya resueltos por la jefatura, en orden de cuándo se resolvieron, para que los flujos de
+ * Power Automate los tomen de a tandas sin repetir ni saltarse ninguno.
+ */
+export async function permisosResueltos(desde: Cursor | null, limite: number): Promise<Permiso[]> {
+  // El orden es por fecha y después por id, así que no hay empates y el flujo no se salta ninguno
+  // aunque dos permisos se resuelvan en el mismo milisegundo.
+  const filas = desde
+    ? await consulta<Fila>(
+        `select ${COLUMNAS} from permisos
+          where estado in ('autorizado', 'rechazado') and (actualizada_en, id) > ($1, $2)
+          order by actualizada_en, id limit $3`,
+        [desde.en, desde.id, limite],
+      )
+    : await consulta<Fila>(
+        `select ${COLUMNAS} from permisos
+          where estado in ('autorizado', 'rechazado')
+          order by actualizada_en, id limit $1`,
+        [limite],
+      );
   return filas.map(desdeFila);
 }
 

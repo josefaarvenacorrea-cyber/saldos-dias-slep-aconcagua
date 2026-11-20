@@ -4,6 +4,7 @@ import { permisoPorCodigo } from '@/lib/permisos';
 import { porCodigo } from '@/lib/postergaciones';
 import { usuarioActual } from '@/lib/sesion';
 import { jefaturaDe } from '@/lib/jefaturas';
+import { esIntegracion } from '@/lib/integracion';
 import { auditar } from '@/lib/db';
 
 /**
@@ -14,18 +15,6 @@ import { auditar } from '@/lib/db';
  * de la solicitud, así que siempre sale igual.
  */
 
-function tokenValido(req: Request): boolean {
-  const esperado = process.env.TOKEN_INTEGRACION;
-  if (!esperado) return false;
-  const cabecera = req.headers.get('authorization') ?? '';
-  const enviado = cabecera.startsWith('Bearer ') ? cabecera.slice(7) : new URL(req.url).searchParams.get('token');
-  if (!enviado || enviado.length !== esperado.length) return false;
-  // Comparación de largo fijo para no filtrar el token por el tiempo de respuesta.
-  let iguales = 0;
-  for (let i = 0; i < esperado.length; i++) iguales |= esperado.charCodeAt(i) ^ enviado.charCodeAt(i);
-  return iguales === 0;
-}
-
 export async function GET(req: Request, ctx: { params: Promise<{ codigo: string }> }) {
   const { codigo } = await ctx.params;
   const limpio = codigo.replace(/\.pdf$/i, '').toUpperCase();
@@ -34,7 +23,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ codigo: string 
   const doc = permiso ?? postergacion;
   if (!doc) return NextResponse.json({ error: 'No existe ese documento.' }, { status: 404 });
 
-  const porToken = tokenValido(req);
+  const porToken = esIntegracion(req);
   if (!porToken) {
     const u = await usuarioActual();
     if (!u) return NextResponse.json({ error: 'Tienes que iniciar sesión.' }, { status: 401 });

@@ -38,6 +38,8 @@ export interface FichaDias {
   rutTexto: string;
   nombre: string;
   area: string;
+  /** Código de programa de la hoja SALDOS ("01", "02"). Lo pide la fila de "Detalle uso". */
+  programa?: string;
   anio: number;
   administrativos: { inicial: number; usados: number; saldo: number; usadosSegunResumen: number };
   feriadoLegal: {

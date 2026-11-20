@@ -291,3 +291,90 @@ test('Aviso de postergación: solo antes y durante el proceso', async () => {
   assert.equal(etapaPostergacion('2026-12-11'), 'terminado');
   assert.equal(etapaPostergacion('2026-12-12'), null);
 });
+
+test('Integración: carpeta del SharePoint y base que alimenta cada tipo', async () => {
+  const { carpetaDe, baseDe, CARPETAS, TIPO_EXCEL } = await import('../src/lib/integracion.ts');
+  assert.equal(CARPETAS[carpetaDe('feriado')], 'Feriado legal');
+  assert.equal(CARPETAS[carpetaDe('goce')], 'Con goce de remuneraciones');
+  assert.equal(CARPETAS[carpetaDe('compensatorio')], 'Permisos complementarios');
+  // El interferiado y los demás permisos se archivan juntos.
+  assert.equal(carpetaDe('interferiado'), 'otros');
+  assert.equal(carpetaDe('otros'), 'otros');
+
+  assert.equal(baseDe('feriado'), 'dias');
+  assert.equal(baseDe('goce'), 'dias');
+  assert.equal(baseDe('compensatorio'), 'descansos');
+  assert.equal(baseDe('interferiado'), 'interferiados');
+  assert.equal(baseDe('otros'), 'ninguna');
+
+  // El texto del tipo en el Excel no es el de la pantalla.
+  assert.equal(TIPO_EXCEL.goce, 'Con Goce de Remuneraciones');
+  assert.equal(TIPO_EXCEL.interferiado, null);
+});
+
+test('Integración: los días se reparten al mes en que se toman', async () => {
+  const { cargosPorMes, rangoDe, anioDe } = await import('../src/lib/integracion.ts');
+  const { diasDelRango } = await import('../src/lib/reglasPermisos.ts');
+
+  // Un feriado legal que cruza de junio a julio: un día en junio, el resto en julio.
+  const cruza = diasDelRango('2026-06-30', '2026-07-03', 'feriado');
+  const reparto = cargosPorMes(cruza);
+  assert.deepEqual(
+    reparto.map((c) => [c.mes, c.dias]),
+    [
+      [6, 1],
+      [7, 3],
+    ],
+  );
+  assert.equal(reparto[0].mesNombre, 'Junio');
+  assert.deepEqual(rangoDe(cruza), { desde: '2026-06-30', hasta: '2026-07-03' });
+  assert.equal(anioDe(cruza, 2027), 2026);
+
+  // Un rango que cae en fin de semana no deja nada que cargar.
+  assert.deepEqual(cargosPorMes(diasDelRango('2026-06-06', '2026-06-07', 'goce')), []);
+
+  // El medio día vale 0,5 y se suma al mes que corresponde.
+  const medio = [
+    { fecha: '2026-03-02', jornada: 'am' as const },
+    { fecha: '2026-03-03', jornada: 'completa' as const },
+  ];
+  assert.deepEqual(
+    cargosPorMes(medio).map((c) => [c.mes, c.dias]),
+    [[3, 1.5]],
+  );
+
+  // El total repartido por mes y el total del permiso tienen que coincidir siempre.
+  const { totalDias } = await import('../src/lib/reglasPermisos.ts');
+  const suma = cargosPorMes(cruza).reduce((t, c) => t + c.dias, 0);
+  assert.equal(suma, totalDias(cruza));
+});
+
+test('Integración: el token se compara completo y en tiempo constante', async () => {
+  const { tokenCalza, tokenDe } = await import('../src/lib/integracion.ts');
+  assert.equal(tokenCalza('secreto-largo', 'secreto-largo'), true);
+  assert.equal(tokenCalza('secreto-largo', 'secreto-largX'), false);
+  assert.equal(tokenCalza('secreto-largo', 'secreto'), false);
+  assert.equal(tokenCalza('secreto-largo', 'secreto-largo-de-mas'), false);
+  // Sin token configurado no se entra ni con la cadena vacía.
+  assert.equal(tokenCalza('', ''), false);
+
+  const conCabecera = new Request('https://x.cl/api', { headers: { authorization: 'Bearer abc' } });
+  assert.equal(tokenDe(conCabecera), 'abc');
+  assert.equal(tokenDe(new Request('https://x.cl/api?token=def')), 'def');
+  assert.equal(tokenDe(new Request('https://x.cl/api')), null);
+});
+
+test('Integración: el cursor lleva fecha e id, para no saltarse documentos', async () => {
+  const { leerCursor, escribirCursor } = await import('../src/lib/integracion.ts');
+  assert.deepEqual(leerCursor('2026-11-20T14:01:33.295Z|41'), { en: '2026-11-20T14:01:33.295Z', id: 41 });
+  // Una fecha sola también sirve, por si el flujo parte con la hora de su última corrida.
+  assert.deepEqual(leerCursor('2026-11-20T14:01:33.295Z'), { en: '2026-11-20T14:01:33.295Z', id: 0 });
+  assert.equal(leerCursor(null), null);
+  assert.equal(leerCursor('cualquier cosa'), null);
+  assert.equal(leerCursor('2026-11-20T14:01:33.295Z|-3'), null);
+  assert.equal(escribirCursor({ en: '2026-11-20T14:01:33.295Z', id: 41 }), '2026-11-20T14:01:33.295Z|41');
+
+  // Ida y vuelta: lo que escribe el endpoint es lo que el flujo puede volver a leer.
+  const c = { en: '2026-11-20T14:01:33.295Z', id: 7 };
+  assert.deepEqual(leerCursor(escribirCursor(c)), c);
+});
