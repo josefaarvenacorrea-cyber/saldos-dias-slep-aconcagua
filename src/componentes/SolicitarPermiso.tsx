@@ -4,12 +4,14 @@ import { useMemo, useState } from 'react';
 import { useActionState } from 'react';
 import { pedirPermiso, type EstadoPermisoForm } from '@/app/mis-dias/permisos/acciones';
 import { Alerta } from './Alerta';
+import { interferiadosDesde } from '@/lib/feriadosChile';
 import {
   CAUSALES_OTROS,
   diasDelRango,
-  esFinDeSemana,
+  esNoHabil,
   esPorHoras,
   horasTexto,
+  motivoNoHabil,
   nombreTipo,
   revisar,
   TIPOS,
@@ -45,6 +47,9 @@ export function SolicitarPermiso({ saldos, jefaturaNombre, hoy }: { saldos: Sald
   const [confirmando, setConfirmando] = useState(false);
 
   const porHoras = esPorHoras(tipo);
+  // El interferiado solo existe para días hábiles pegados a un feriado, así que en vez de dejar
+  // elegir cualquier fecha se ofrecen las que corresponden.
+  const interferiados = useMemo(() => (tipo === 'interferiado' ? interferiadosDesde(hoy) : []), [tipo, hoy]);
   const dias = useMemo(
     () => (desde && hasta ? diasDelRango(desde, porHoras ? desde : hasta, tipo, jornadas) : []),
     [desde, hasta, tipo, jornadas, porHoras],
@@ -148,6 +153,34 @@ export function SolicitarPermiso({ saldos, jefaturaNombre, hoy }: { saldos: Sald
         </>
       ) : null}
 
+      {tipo === 'interferiado' ? (
+        interferiados.length ? (
+          <div className="campo">
+            <label htmlFor="inter">Día interferiado</label>
+            <select
+              id="inter"
+              value={desde}
+              onChange={(e) => {
+                setDesde(e.target.value);
+                setHasta(e.target.value);
+                setConfirmando(false);
+              }}
+            >
+              <option value="">Elige un día</option>
+              {interferiados.map((i) => (
+                <option key={i.fecha} value={i.fecha}>
+                  {legible(i.fecha)} · antes de {i.nombreFeriado}
+                </option>
+              ))}
+            </select>
+            <span className="sub">Son los únicos días en que se puede pedir este permiso.</span>
+          </div>
+        ) : (
+          <Alerta tipo="info" titulo="No quedan días interferiados por delante">
+            <p>Este permiso solo se puede pedir en un día hábil que esté justo antes de un feriado.</p>
+          </Alerta>
+        )
+      ) : (
       <div className="filtros">
         <div className="campo">
           <label htmlFor="desde">{porHoras ? 'Fecha' : 'Desde'}</label>
@@ -191,20 +224,22 @@ export function SolicitarPermiso({ saldos, jefaturaNombre, hoy }: { saldos: Sald
           </>
         )}
       </div>
+      )}
 
-      {!porHoras && dias.length ? (
+      {!porHoras && dias.length && tipo !== 'interferiado' ? (
         <div className="campo">
           <span className="etiqueta-campo">
             {tipo === 'feriado' ? 'Días (el feriado legal solo admite jornada completa)' : 'Jornada por día'}
           </span>
           <ul className="lista-dias">
             {dias.map((d) => {
-              const libre = esFinDeSemana(d.fecha);
+              const libre = esNoHabil(d.fecha);
+              const motivo = motivoNoHabil(d.fecha);
               return (
                 <li key={d.fecha} className={libre ? 'no-habil' : ''}>
                   <span className="fecha-dia">{legible(d.fecha)}</span>
                   {libre ? (
-                    <span className="sub">no hábil, no se descuenta</span>
+                    <span className="sub">{motivo === 'fin de semana' ? 'fin de semana' : motivo}, no se descuenta</span>
                   ) : tipo === 'feriado' ? (
                     <span className="sub">jornada completa</span>
                   ) : (

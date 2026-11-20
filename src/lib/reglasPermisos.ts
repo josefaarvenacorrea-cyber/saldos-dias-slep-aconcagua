@@ -10,6 +10,8 @@
  * Vive aparte de la base de datos para poder probarlo solo.
  */
 
+import { esDiaHabil, esInterferiado, feriadoQueSigue, hayCalendarioPara, nombreFeriado } from './feriadosChile.ts';
+
 export type TipoPermiso = 'feriado' | 'goce' | 'compensatorio' | 'interferiado' | 'otros';
 
 export type Jornada = 'completa' | 'am' | 'pm';
@@ -45,11 +47,18 @@ export function descuentaSaldo(t: TipoPermiso): boolean {
   return t === 'feriado' || t === 'goce' || t === 'compensatorio';
 }
 
-/** Sábado o domingo. Los días no hábiles no se descuentan del saldo. */
-export function esFinDeSemana(fecha: string): boolean {
-  const [a, m, d] = fecha.split('-').map(Number);
-  const dia = new Date(a, m - 1, d).getDay();
-  return dia === 0 || dia === 6;
+/**
+ * Día que no se descuenta del saldo: sábado, domingo o feriado. Si alguien pide un permiso que
+ * cruza un feriado, ese feriado no le cuesta días.
+ */
+export function esNoHabil(fecha: string): boolean {
+  return !esDiaHabil(fecha);
+}
+
+/** Por qué un día no se descuenta, para decirlo en pantalla. */
+export function motivoNoHabil(fecha: string): string | null {
+  if (esDiaHabil(fecha)) return null;
+  return nombreFeriado(fecha) ?? 'fin de semana';
 }
 
 /** Los días del rango, con la jornada que corresponda según el tipo. */
@@ -62,7 +71,9 @@ export function diasDelRango(desde: string, hasta: string, tipo: TipoPermiso, pr
   // Tope de seguridad: ningún permiso de este formulario cubre más de dos meses.
   for (let i = 0; cur <= fin && i < 70; i++) {
     const iso = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
-    salida.push({ fecha: iso, jornada: tipo === 'feriado' ? 'completa' : (previas[iso] ?? 'completa') });
+    // El feriado legal y el interferiado se toman por jornada completa.
+    const soloCompleta = tipo === 'feriado' || tipo === 'interferiado';
+    salida.push({ fecha: iso, jornada: soloCompleta ? 'completa' : (previas[iso] ?? 'completa') });
     cur.setDate(cur.getDate() + 1);
   }
   return salida;
@@ -71,7 +82,7 @@ export function diasDelRango(desde: string, hasta: string, tipo: TipoPermiso, pr
 /** Total de días que se descuentan: los fines de semana no cuentan y el medio día vale 0,5. */
 export function totalDias(dias: DiaPedido[]): number {
   const t = dias.reduce((acc, d) => {
-    if (esFinDeSemana(d.fecha)) return acc;
+    if (esNoHabil(d.fecha)) return acc;
     return acc + (d.jornada === 'completa' ? 1 : 0.5);
   }, 0);
   return Math.round(t * 2) / 2;
@@ -151,6 +162,23 @@ export function revisar(s: Solicitud, saldos: Saldos): Revision {
     return { ok: false, error: 'El feriado legal solo admite días completos.', dias, minutos: 0 };
   }
 
+  if (s.tipo === 'interferiado') {
+    const habiles = s.dias.filter((d) => !esNoHabil(d.fecha));
+    const sinCalendario = habiles.find((d) => !hayCalendarioPara(d.fecha));
+    if (sinCalendario) {
+      return { ok: false, error: 'Todavía no tengo cargados los feriados de ese año.', dias, minutos: 0 };
+    }
+    const fuera = habiles.find((d) => !esInterferiado(d.fecha));
+    if (fuera) {
+      return {
+        ok: false,
+        error: 'El permiso por interferiado solo se puede pedir en un día hábil que esté justo antes de un feriado.',
+        dias,
+        minutos: 0,
+      };
+    }
+  }
+
   if (s.tipo === 'otros' && !s.certificado) {
     return { ok: false, error: 'Tienes que adjuntar el certificado correspondiente.', dias, minutos: 0 };
   }
@@ -171,7 +199,7 @@ export function revisar(s: Solicitud, saldos: Saldos): Revision {
  * el documento no marca ninguna casilla y detalla día por día.
  */
 export function jornadaUnica(dias: DiaPedido[]): Jornada | null {
-  const habiles = dias.filter((d) => !esFinDeSemana(d.fecha));
+  const habiles = dias.filter((d) => !esNoHabil(d.fecha));
   if (!habiles.length) return null;
   const primera = habiles[0].jornada;
   return habiles.every((d) => d.jornada === primera) ? primera : null;

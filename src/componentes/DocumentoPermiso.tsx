@@ -5,7 +5,7 @@ import { fechaCorta, fechaHoraChile } from '@/lib/fechas';
 import * as f from '@/lib/formato';
 import type { ActoFirma } from '@/lib/postergaciones';
 import type { Permiso } from '@/lib/permisos';
-import { CAUSALES_OTROS, esFinDeSemana, horasTexto, jornadaUnica } from '@/lib/reglasPermisos';
+import { CAUSALES_OTROS, esNoHabil, horasTexto, jornadaUnica } from '@/lib/reglasPermisos';
 
 /** Casilla del formulario, marcada con una X igual que en el papel. */
 function Casilla({ marcada }: { marcada: boolean }) {
@@ -50,7 +50,7 @@ export interface FirmasPermiso {
 }
 
 export function DocumentoPermiso({ p, firmas = {} }: { p: Permiso; firmas?: FirmasPermiso }) {
-  const habiles = p.dias.filter((d) => !esFinDeSemana(d.fecha));
+  const habiles = p.dias.filter((d) => !esNoHabil(d.fecha));
   const primera = habiles[0]?.fecha ?? p.dias[0]?.fecha ?? null;
   const ultima = habiles[habiles.length - 1]?.fecha ?? p.dias[p.dias.length - 1]?.fecha ?? null;
   const porHoras = p.tipo === 'compensatorio';

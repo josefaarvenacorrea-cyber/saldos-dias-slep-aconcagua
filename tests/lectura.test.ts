@@ -165,9 +165,45 @@ test('Permisos: cada tipo con su regla de fraccionamiento y su tope de saldo', a
   assert.match(sinCert.error ?? '', /certificado/);
   assert.equal(r.revisar({ ...base, tipo: 'otros', dias: rango('otros'), certificado: 'cert.pdf' }, saldos).ok, true);
 
-  // Interferiado: se registra, pero todavía no tiene tope automático.
+  // Interferiado: no descuenta saldo, pero solo se puede pedir en los días que corresponden.
   assert.equal(r.descuentaSaldo('interferiado'), false);
-  assert.equal(r.revisar({ ...base, tipo: 'interferiado', dias: rango('interferiado') }, saldos).ok, true);
+});
+
+test('Interferiado: solo el día hábil que está justo antes de un feriado', async () => {
+  const r = await import('../src/lib/reglasPermisos.ts');
+  const c = await import('../src/lib/feriadosChile.ts');
+  const saldos = { feriado: 15, goce: 2.5, compensatorioMin: 450 };
+  const base = { horaDesde: '08:30', horaHasta: '11:30', certificado: null };
+  const pedir = (desde: string, hasta = desde) =>
+    r.revisar({ ...base, tipo: 'interferiado' as const, dias: r.diasDelRango(desde, hasta, 'interferiado') }, saldos);
+
+  // Lunes 7 de diciembre de 2026, justo antes de la Inmaculada Concepción del martes 8.
+  assert.equal(c.esInterferiado('2026-12-07'), true);
+  assert.equal(pedir('2026-12-07').ok, true);
+
+  // Jueves 24 de diciembre, justo antes de Navidad.
+  assert.equal(c.esInterferiado('2026-12-24'), true);
+
+  // Un lunes cualquiera no lo es.
+  assert.equal(c.esInterferiado('2026-11-23'), false);
+  const malo = pedir('2026-11-23');
+  assert.equal(malo.ok, false);
+  assert.match(malo.error ?? '', /justo antes de un feriado/);
+
+  // El feriado mismo no es interferiado, ni tampoco un fin de semana.
+  assert.equal(c.esInterferiado('2026-12-25'), false);
+  assert.equal(c.esInterferiado('2026-12-26'), false);
+
+  // Los feriados no se descuentan del saldo en ningún tipo de permiso.
+  const cruzaFeriado = r.diasDelRango('2026-12-07', '2026-12-09', 'goce');
+  assert.equal(r.totalDias(cruzaFeriado), 2); // el martes 8 es feriado y no cuesta día
+  assert.equal(r.motivoNoHabil('2026-12-08'), 'Inmaculada Concepción');
+  assert.equal(r.motivoNoHabil('2026-12-05'), 'fin de semana');
+  assert.equal(r.motivoNoHabil('2026-12-07'), null);
+
+  // Sin calendario del año no se adivina.
+  assert.equal(c.hayCalendarioPara('2031-05-05'), false);
+  assert.match(pedir('2031-05-05').error ?? '', /feriados de ese año/);
 });
 
 test('Días hábiles que quedan en el año, desde mañana', () => {
