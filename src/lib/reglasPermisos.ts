@@ -3,7 +3,8 @@
  *
  * - Feriado Legal: solo días completos (1, 2, 3...).
  * - Con goce de remuneraciones: se fracciona en medio día, así que da 0,5 / 1 / 1,5 / 2...
- * - Descanso Compensatorio: por horas, dentro de un solo día.
+ * - Descanso Complementario: por horas, dentro de un solo día. Así lo llama el estatuto
+ *   administrativo y así lo escribe la columna Tipo de la planilla.
  * - Interferiado y Otros Permisos: quedan registrados, pero sin tope automático porque todavía no
  *   están definidas sus reglas de cuánto corresponde ni contra qué saldo descuentan.
  *
@@ -25,7 +26,7 @@ export interface DiaPedido {
 export const TIPOS: { valor: TipoPermiso; nombre: string; regla: string }[] = [
   { valor: 'feriado', nombre: 'Feriado Legal', regla: 'Solo días completos' },
   { valor: 'goce', nombre: 'Con goce de remuneraciones', regla: 'Día completo o medio día' },
-  { valor: 'compensatorio', nombre: 'Descanso Compensatorio', regla: 'Por horas, dentro de un día' },
+  { valor: 'compensatorio', nombre: 'Descanso Complementario', regla: 'Por horas, dentro de un día' },
   { valor: 'interferiado', nombre: 'Interferiado', regla: 'Horas por recuperar' },
   { valor: 'otros', nombre: 'Otros Permisos', regla: 'Requiere certificado' },
 ];
@@ -157,7 +158,7 @@ export interface Saldos {
   feriado: number;
   /** Días disponibles con goce de remuneraciones. */
   goce: number;
-  /** Minutos disponibles de descanso compensatorio. */
+  /** Minutos disponibles de descanso complementario. */
   compensatorioMin: number;
 }
 
@@ -185,7 +186,7 @@ export function revisar(s: Solicitud, saldos: Saldos): Revision {
     if (minutos > saldos.compensatorioMin) {
       return {
         ok: false,
-        error: `Pides ${horasTexto(minutos)} hrs y tu saldo compensatorio es de ${horasTexto(saldos.compensatorioMin)} hrs.`,
+        error: `Pides ${horasTexto(minutos)} hrs y tu saldo complementario es de ${horasTexto(saldos.compensatorioMin)} hrs.`,
         dias: 0,
         minutos,
       };

@@ -707,3 +707,14 @@ test('Avisos: todo el set trata de usted', async () => {
     assert.equal(m, null, `quedó tuteo: "${m?.[0]}" en "${t.replace(/<[^>]+>/g, ' ').trim().slice(0, 90)}"`);
   }
 });
+
+test('El descanso complementario se llama igual en todas partes', async () => {
+  const r = await import('../src/lib/reglasPermisos.ts');
+  const a = await import('../src/lib/avisos.ts');
+  const i = await import('../src/lib/integracion.ts');
+  // La pantalla, el formulario y la columna Tipo de la planilla decían dos palabras distintas para
+  // lo mismo. El estatuto administrativo usa "complementario", igual que la planilla.
+  assert.equal(r.nombreTipo('compensatorio'), 'Descanso Complementario');
+  assert.equal(i.TIPO_EXCEL.compensatorio, 'Descanso Complementario');
+  assert.equal(a.tipoTexto('compensatorio'), 'Descanso Complementario');
+});

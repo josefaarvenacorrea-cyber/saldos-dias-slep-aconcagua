@@ -37,7 +37,7 @@ export const FORMULARIOS = [
   {
     archivo: '/formularios/formulario-solicitud-permisos.docx',
     titulo: 'Formulario de solicitud de permisos',
-    descripcion: 'Feriado legal, días administrativos, descanso compensatorio, interferiado y otros permisos.',
+    descripcion: 'Feriado legal, días administrativos, descanso complementario, interferiado y otros permisos.',
     peso: '115 KB',
   },
 ];

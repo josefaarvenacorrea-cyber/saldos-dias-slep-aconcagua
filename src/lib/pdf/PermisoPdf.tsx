@@ -227,7 +227,7 @@ export function PermisoPdf({ p, firmas = {} }: { p: Permiso; firmas?: FirmasPdf 
         ) : null}
         {porHoras && primera ? (
           <Text style={e.detalle}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', color: AZUL }}>Fecha del descanso compensatorio: </Text>
+            <Text style={{ fontFamily: 'Helvetica-Bold', color: AZUL }}>Fecha del descanso complementario: </Text>
             {fechaCorta(primera)}
           </Text>
         ) : null}

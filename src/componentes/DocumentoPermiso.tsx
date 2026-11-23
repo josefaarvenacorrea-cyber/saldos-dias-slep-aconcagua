@@ -169,7 +169,7 @@ export function DocumentoPermiso({ p, firmas = {} }: { p: Permiso; firmas?: Firm
       ) : null}
       {porHoras && primera ? (
         <p className="sp-detalle-dias">
-          <strong>Fecha del descanso compensatorio:</strong> {fechaCorta(primera)}
+          <strong>Fecha del descanso complementario:</strong> {fechaCorta(primera)}
         </p>
       ) : null}
 

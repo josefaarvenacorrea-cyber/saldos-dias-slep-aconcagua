@@ -78,7 +78,7 @@ export default async function Permisos({ searchParams }: { searchParams: Promise
                   </p>
                 </div>
                 <div className="tarjeta">
-                  <h3 style={{ marginTop: 0, marginBottom: 4 }}>Descanso compensatorio</h3>
+                  <h3 style={{ marginTop: 0, marginBottom: 4 }}>Descanso complementario</h3>
                   <p className="saldo-cifra" style={{ margin: 0 }}>
                     {horasTexto(saldos.compensatorioMin)}
                     <small>hrs</small>
