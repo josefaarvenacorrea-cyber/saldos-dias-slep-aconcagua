@@ -447,7 +447,7 @@ test('Avisos: el correo del permiso dice lo que corresponde según el tipo', asy
   // Rechazado: no habla del saldo descontado ni del código de verificación.
   c = a.cuerpoPermiso({ ...feriado, autorizado: false });
   assert.match(c, /<strong>no fue autorizada<\/strong>/);
-  assert.match(c, /no se descontaron de tu saldo/);
+  assert.match(c, /no se descontaron de su saldo/);
   assert.equal(a.asuntoPermiso({ ...feriado, autorizado: false }), 'Permiso no autorizado: Feriado Legal · ABC123');
 });
 
@@ -472,11 +472,11 @@ test('Avisos: el correo de la postergación distingue los tres cierres', async (
     anioDeUso: 2027,
     fechaInicio: '2026-12-15',
   };
-  assert.equal(asuntoPostergacion({ ...base, estadoTexto: '', acepto: true, diasAcumular: 10 }), 'Postergación de feriado legal · XYZ789');
+  assert.equal(asuntoPostergacion({ ...base, estadoTexto: '', acepto: true, diasAcumular: 10 }), 'Solicitud de feriado legal resuelta · XYZ789');
 
   // Aceptó: dice cuántos días acumula y para qué año.
   let c = cuerpoPostergacion({ ...base, estadoTexto: 'Postergación solicitada', acepto: true, diasAcumular: 10 });
-  assert.match(c, /Acumulas <strong>10 días<\/strong> de tu feriado legal 2026/);
+  assert.match(c, /Acumula <strong>10 días<\/strong> de su feriado legal 2026/);
   assert.match(c, /para usarlos en 2027/);
 
   // Sin postergación o desistida: no hay días que acumular, así que no se menciona.
@@ -505,8 +505,8 @@ test('Avisos: los correos de "pendiente de firma" dicen a quién le toca y qué 
     horaHasta: null,
     detalle: null,
   });
-  assert.equal(permiso.asunto, 'Permiso pendiente de tu firma: Ana María Prueba Soto · Con goce de remuneraciones');
-  assert.match(permiso.cuerpoHtml, /Hola Jefa De Prueba Mena/);
+  assert.equal(permiso.asunto, 'Permiso pendiente de su firma: Ana María Prueba Soto · Con Goce de Remuneraciones');
+  assert.match(permiso.cuerpoHtml, /Estimado\/a Jefa De Prueba Mena/);
   assert.match(permiso.cuerpoHtml, /del 02-12-2026 al 03-12-2026/);
   assert.match(permiso.cuerpoHtml, /1,5 días/);
   assert.match(permiso.cuerpoHtml, /href="https:\/\/ejemplo\.cl\/autorizaciones"/);
@@ -540,7 +540,7 @@ test('Avisos: los correos de "pendiente de firma" dicen a quién le toca y qué 
     fechaInicio: '2027-01-05',
     postergable: 12,
   });
-  assert.match(propuesta.cuerpoHtml, /Hola Rodrigo Prueba Vera/);
+  assert.match(propuesta.cuerpoHtml, /Estimado\/a Rodrigo Prueba Vera/);
   assert.match(propuesta.cuerpoHtml, /sección III/);
   assert.match(propuesta.cuerpoHtml, /acumular hasta 12 días/);
 
@@ -571,4 +571,139 @@ test('Avisos: el cierre de la postergación avisa que falta la resolución exent
   // Si no aceptó, no hay nada que oficializar.
   const d = cuerpoPostergacion({ ...base, estadoTexto: 'Feriado autorizado', acepto: false, diasAcumular: null });
   assert.ok(!/resolución exenta/.test(d));
+});
+
+test('Avisos: un solo nombre por tipo y un solo sustantivo por trámite', async () => {
+  const a = await import('../src/lib/avisos.ts');
+
+  // El nombre del tipo es el de la columna Tipo de la planilla, para que el correo y la base digan
+  // lo mismo. Antes convivían tres grafías según el estado del trámite.
+  assert.equal(a.tipoTexto('feriado'), 'Feriado Legal');
+  assert.equal(a.tipoTexto('goce'), 'Con Goce de Remuneraciones');
+  assert.equal(a.tipoTexto('compensatorio'), 'Descanso Complementario');
+  // Estos dos no tienen fila en esas bases, así que usan el nombre de la pantalla.
+  assert.equal(a.tipoTexto('interferiado'), 'Interferiado');
+  assert.equal(a.tipoTexto('otros'), 'Otros Permisos');
+
+  const comun = {
+    codigo: 'ABC123',
+    nombre: 'Ana María Prueba Soto',
+    jefaturaNombre: 'Jefa De Prueba Mena',
+    desde: '2026-06-30',
+    hasta: '2026-07-03',
+    totalDias: 4,
+    horaDesde: null,
+    horaHasta: null,
+    recuperacion: null,
+  };
+  // El permiso se llama "Permiso" en los dos estados, con la misma grafía del tipo.
+  const pendiente = a.correoPermisoPendiente({
+    ...comun,
+    destinatarioNombre: 'Jefa De Prueba Mena',
+    solicitanteNombre: 'Ana María Prueba Soto',
+    enlace: 'https://x.cl/autorizaciones',
+    tipo: 'feriado',
+    detalle: null,
+  });
+  assert.match(pendiente.asunto, /^Permiso pendiente de su firma: .+ · Feriado Legal$/);
+  assert.match(a.asuntoPermiso({ ...comun, tipo: 'feriado', autorizado: true }), /^Permiso autorizado: Feriado Legal/);
+
+  // La solicitud de feriado legal se llama igual en sus tres estados, así no cambia de nombre a
+  // mitad de camino.
+  const pend = a.correoPostergacionPendiente({
+    codigo: 'XYZ789',
+    destinatarioNombre: 'Jefa De Prueba Mena',
+    solicitanteNombre: 'Carla Prueba Rojas',
+    jefaturaNombre: 'Jefa De Prueba Mena',
+    enlace: 'https://x.cl/autorizaciones',
+    diasSolicitados: 10,
+    fechaInicio: '2026-12-15',
+  });
+  const prop = a.correoPostergacionPropuesta({
+    codigo: 'XYZ789',
+    destinatarioNombre: 'Carla Prueba Rojas',
+    solicitanteNombre: 'Carla Prueba Rojas',
+    jefaturaNombre: 'Jefa De Prueba Mena',
+    enlace: 'https://x.cl/mis-dias/postergacion',
+    diasSolicitados: 10,
+    fechaInicio: '2026-12-15',
+    postergable: 10,
+  });
+  for (const asunto of [pend.asunto, prop.asunto, a.asuntoPostergacion({
+    codigo: 'XYZ789',
+    nombre: 'Carla Prueba Rojas',
+    jefaturaNombre: 'Jefa De Prueba Mena',
+    estadoTexto: 'Postergación solicitada',
+    acepto: true,
+    anio: 2026,
+    anioDeUso: 2027,
+    diasAcumular: 10,
+    fechaInicio: '2026-12-15',
+  })]) {
+    assert.match(asunto, /^Solicitud de feriado legal/, `"${asunto}" debe nombrar el trámite igual`);
+  }
+});
+
+test('Avisos: el rechazo deja claro que el camino sigue abierto', async () => {
+  const { cuerpoPermiso } = await import('../src/lib/avisos.ts');
+  const c = cuerpoPermiso({
+    codigo: 'ABC123',
+    tipo: 'goce',
+    nombre: 'Ana María Prueba Soto',
+    jefaturaNombre: 'Jefa De Prueba Mena',
+    autorizado: false,
+    desde: '2026-06-30',
+    hasta: '2026-07-03',
+    totalDias: 4,
+    horaDesde: null,
+    horaHasta: null,
+    recuperacion: null,
+  });
+  assert.match(c, /Puede volver a solicitarlo/);
+  assert.match(c, /no cierra el trámite/);
+});
+
+test('Avisos: la unidad va con su nombre completo', async () => {
+  const { cuerpoPostergacion } = await import('../src/lib/avisos.ts');
+  const c = cuerpoPostergacion({
+    codigo: 'XYZ789',
+    nombre: 'Ana María Prueba Soto',
+    jefaturaNombre: 'Jefa De Prueba Mena',
+    estadoTexto: 'Postergación solicitada',
+    acepto: true,
+    anio: 2026,
+    anioDeUso: 2027,
+    diasAcumular: 10,
+    fechaInicio: '2026-12-15',
+  });
+  assert.match(c, /Subdirección de Gestión y Desarrollo de Personas/);
+});
+
+test('Avisos: todo el set trata de usted', async () => {
+  const a = await import('../src/lib/avisos.ts');
+  const comun = {
+    codigo: 'ABC123',
+    nombre: 'Ana María Prueba Soto',
+    jefaturaNombre: 'Jefa De Prueba Mena',
+    desde: '2026-12-02',
+    hasta: '2026-12-02',
+    totalDias: 1,
+    horaDesde: null,
+    horaHasta: null,
+    recuperacion: null,
+  };
+  const textos = [
+    a.cuerpoPermiso({ ...comun, tipo: 'goce', autorizado: true }),
+    a.cuerpoPermiso({ ...comun, tipo: 'goce', autorizado: false }),
+    a.correoPermisoPendiente({ ...comun, destinatarioNombre: 'J', solicitanteNombre: 'A', enlace: 'https://x.cl', tipo: 'goce', detalle: null }).cuerpoHtml,
+    a.correoPostergacionPendiente({ codigo: 'X', destinatarioNombre: 'J', solicitanteNombre: 'A', jefaturaNombre: 'J', enlace: 'https://x.cl', diasSolicitados: 10, fechaInicio: '2026-12-15' }).cuerpoHtml,
+    a.correoPostergacionPropuesta({ codigo: 'X', destinatarioNombre: 'A', solicitanteNombre: 'A', jefaturaNombre: 'J', enlace: 'https://x.cl', diasSolicitados: 10, fechaInicio: '2026-12-15', postergable: 10 }).cuerpoHtml,
+    a.cuerpoPostergacion({ codigo: 'X', nombre: 'A', jefaturaNombre: 'J', estadoTexto: 'E', acepto: true, anio: 2026, anioDeUso: 2027, diasAcumular: 10, fechaInicio: '2026-12-15' }),
+  ];
+  // Las formas de tuteo que había antes en estos textos.
+  const tuteo = /\b(Hola|puedes|tienes|firmes|acumulas|declaras|declaraste|conversa|Entra)\b|\btu\b|\btus\b/;
+  for (const t of textos) {
+    const m = t.match(tuteo);
+    assert.equal(m, null, `quedó tuteo: "${m?.[0]}" en "${t.replace(/<[^>]+>/g, ' ').trim().slice(0, 90)}"`);
+  }
 });

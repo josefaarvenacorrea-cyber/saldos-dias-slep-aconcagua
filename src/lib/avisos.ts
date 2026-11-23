@@ -16,7 +16,19 @@
  */
 
 import { nombreTipo, type TipoPermiso } from './reglasPermisos.ts';
-import { nombreMes, type CargoMes } from './integracion.ts';
+import { TIPO_EXCEL, nombreMes, type CargoMes } from './integracion.ts';
+
+/**
+ * El nombre del tipo tal como lo escribe la columna Tipo de la planilla, para que el correo y la
+ * base digan lo mismo. Antes convivían tres grafías ("Feriado Legal", "feriado legal", "Con goce
+ * de remuneraciones") según el estado del trámite.
+ *
+ * El interferiado y los otros permisos no tienen fila en esas bases, así que usan el nombre de la
+ * pantalla.
+ */
+export function tipoTexto(t: TipoPermiso): string {
+  return TIPO_EXCEL[t] ?? nombreTipo(t);
+}
 
 /** Lo que el flujo necesita para una sola acción de "Enviar un correo (V2)". */
 export interface CorreoPlano {
@@ -52,11 +64,11 @@ function cierre(codigo: string): string {
   return `
       <p>El formulario firmado va adjunto. Quedó archivado y registrado, no hay que enviarlo a
       ninguna parte.</p>
-      <p>Puedes verificarlo en Mis Días con el código <strong>${codigo}</strong>.</p>`;
+      <p>Puede verificarlo en Mis Días con el código <strong>${codigo}</strong>.</p>`;
 }
 
 /**
- * Cada evento de la tramitación manda su propio aviso. Los de "tienes algo pendiente" van sin PDF
+ * Cada evento de la tramitación manda su propio aviso. Los de "pendiente de su firma" van sin PDF
  * y con el enlace para entrar a firmar, porque lo que hay que hacer es firmar, no guardar un papel.
  */
 export type Evento =
@@ -72,7 +84,7 @@ export function esCierre(evento: Evento): boolean {
 }
 
 function aFirmar(url: string, que: string): string {
-  return `<p><a href="${url}">Entra a Mis Días para ${que}</a>.</p>`;
+  return `<p><a href="${url}">Entre a Mis Días para ${que}</a>.</p>`;
 }
 
 export interface DatosPendiente {
@@ -104,13 +116,13 @@ export function correoPermisoPendiente(
         : `del ${fechaTexto(d.desde)} al ${fechaTexto(d.hasta)}`;
   const cuanto = d.horaDesde && d.horaHasta ? '' : `<li><strong>Días:</strong> ${diasTexto(d.totalDias)}</li>`;
   return {
-    asunto: `Permiso pendiente de tu firma: ${d.solicitanteNombre} · ${nombreTipo(d.tipo)}`,
+    asunto: `Permiso pendiente de su firma: ${d.solicitanteNombre} · ${tipoTexto(d.tipo)}`,
     cuerpoHtml: `
-      <p>Hola ${d.jefaturaNombre}:</p>
-      <p><strong>${d.solicitanteNombre}</strong> solicitó un permiso y lo firmó. Queda pendiente tu
+      <p>Estimado/a ${d.jefaturaNombre}:</p>
+      <p><strong>${d.solicitanteNombre}</strong> solicitó un permiso y lo firmó. Queda pendiente su
       autorización.</p>
       <ul>
-        <li><strong>Tipo:</strong> ${nombreTipo(d.tipo)}</li>
+        <li><strong>Tipo:</strong> ${tipoTexto(d.tipo)}</li>
         <li><strong>Cuándo:</strong> ${cuando}</li>
         ${cuanto}
         ${d.detalle ? `<li><strong>Detalle:</strong> ${d.detalle}</li>` : ''}
@@ -124,16 +136,16 @@ export function correoPostergacionPendiente(
   d: DatosPendiente & { diasSolicitados: number; fechaInicio: string | null },
 ): { asunto: string; cuerpoHtml: string } {
   return {
-    asunto: `Feriado legal pendiente de tu firma: ${d.solicitanteNombre}`,
+    asunto: `Solicitud de feriado legal pendiente de su firma: ${d.solicitanteNombre}`,
     cuerpoHtml: `
-      <p>Hola ${d.jefaturaNombre}:</p>
+      <p>Estimado/a ${d.jefaturaNombre}:</p>
       <p><strong>${d.solicitanteNombre}</strong> solicitó su feriado legal y firmó la sección I del
-      formulario. Queda pendiente tu respuesta.</p>
+      formulario. Queda pendiente su respuesta.</p>
       <ul>
         <li><strong>Días solicitados:</strong> ${diasTexto(d.diasSolicitados)}</li>
         <li><strong>A partir del:</strong> ${fechaTexto(d.fechaInicio)}</li>
       </ul>
-      <p>Si no puedes concederlo por buen servicio, en la sección II propones la postergación y la
+      <p>Si no puede concederlo por buen servicio, en la sección II propone la postergación y la
       solicitud vuelve a ${d.solicitanteNombre} para que acepte y declare cuántos días acumula.</p>
       ${aFirmar(d.enlace, 'responder y firmar')}`,
   };
@@ -144,15 +156,15 @@ export function correoPostergacionPropuesta(
   d: DatosPendiente & { diasSolicitados: number; fechaInicio: string | null; postergable: number | null },
 ): { asunto: string; cuerpoHtml: string } {
   return {
-    asunto: `Tu feriado legal necesita tu firma para cerrar · ${d.codigo}`,
+    asunto: `Solicitud de feriado legal pendiente de su firma · ${d.codigo}`,
     cuerpoHtml: `
-      <p>Hola ${d.destinatarioNombre}:</p>
-      <p>${d.jefaturaNombre} respondió tu solicitud de feriado legal del
+      <p>Estimado/a ${d.destinatarioNombre}:</p>
+      <p>${d.jefaturaNombre} respondió su solicitud de feriado legal del
       ${fechaTexto(d.fechaInicio)}: no puede concederlo por buen servicio y propone
       <strong>postergar los días</strong> para el año siguiente.</p>
-      <p>Falta tu firma en la sección III, donde declaras cuántos días acumulas. Mientras no firmes,
-      la tramitación queda abierta.</p>
-      ${d.postergable !== null ? `<p>Puedes acumular hasta ${diasTexto(d.postergable)}.</p>` : ''}
+      <p>Falta su firma en la sección III, donde declara cuántos días acumula. Mientras no firme, la
+      tramitación queda abierta.</p>
+      ${d.postergable !== null ? `<p>Puede acumular hasta ${diasTexto(d.postergable)}.</p>` : ''}
       ${aFirmar(d.enlace, 'aceptar y firmar, o desistir')}`,
   };
 }
@@ -174,7 +186,7 @@ export interface DatosCorreoPermiso {
 
 export function asuntoPermiso(d: DatosCorreoPermiso): string {
   const estado = d.autorizado ? 'Permiso autorizado' : 'Permiso no autorizado';
-  return `${estado}: ${nombreTipo(d.tipo)} · ${d.codigo}`;
+  return `${estado}: ${tipoTexto(d.tipo)} · ${d.codigo}`;
 }
 
 export function cuerpoPermiso(d: DatosCorreoPermiso): string {
@@ -189,26 +201,28 @@ export function cuerpoPermiso(d: DatosCorreoPermiso): string {
 
   if (!d.autorizado) {
     return `
-      <p>Hola ${d.nombre}:</p>
-      <p>Tu solicitud de <strong>${nombreTipo(d.tipo)}</strong> <strong>no fue autorizada</strong>
+      <p>Estimado/a ${d.nombre}:</p>
+      <p>Su solicitud de <strong>${tipoTexto(d.tipo)}</strong> <strong>no fue autorizada</strong>
       por ${d.jefaturaNombre}.</p>
       ${cuando}
-      <p>Los días no se descontaron de tu saldo. El formulario con la respuesta va adjunto.</p>
-      <p>Si tienes dudas sobre el motivo, conversa con tu jefatura directa.</p>`;
+      <p>Los días no se descontaron de su saldo. El formulario con la respuesta va adjunto.</p>
+      <p>Puede volver a solicitarlo en Mis Días para otras fechas: el rechazo no cierra el trámite
+      ni consume su saldo.</p>
+      <p>Si tiene dudas sobre el motivo, converse con su jefatura directa.</p>`;
   }
 
   const devolucion = d.recuperacion
     ? `
       <p>Este permiso <strong>no descuenta saldo</strong>, pero las horas hay que devolverlas.
-      Según lo que declaraste, son ${String(d.recuperacion.horas).replace('.', ',')} horas repartidas
+      Según lo que declaró, son ${String(d.recuperacion.horas).replace('.', ',')} horas repartidas
       en ${d.recuperacion.dias} ${d.recuperacion.dias === 1 ? 'día' : 'días'}, entre el
       ${fechaTexto(d.recuperacion.desde)} y el ${fechaTexto(d.recuperacion.hasta)}. El detalle de
       cada día está en el formulario adjunto.</p>`
     : '';
 
   return `
-      <p>Hola ${d.nombre}:</p>
-      <p>Tu solicitud de <strong>${nombreTipo(d.tipo)}</strong> quedó <strong>autorizada</strong>
+      <p>Estimado/a ${d.nombre}:</p>
+      <p>Su solicitud de <strong>${tipoTexto(d.tipo)}</strong> quedó <strong>autorizada</strong>
       por ${d.jefaturaNombre}.</p>
       ${cuando}
       ${devolucion}
@@ -228,30 +242,30 @@ export interface DatosCorreoPostergacion {
 }
 
 export function asuntoPostergacion(d: DatosCorreoPostergacion): string {
-  return `Postergación de feriado legal · ${d.codigo}`;
+  return `Solicitud de feriado legal resuelta · ${d.codigo}`;
 }
 
 export function cuerpoPostergacion(d: DatosCorreoPostergacion): string {
   const acumula =
     d.acepto && d.diasAcumular
-      ? `<p>Acumulas <strong>${diasTexto(d.diasAcumular)}</strong> de tu feriado legal ${d.anio}
+      ? `<p>Acumula <strong>${diasTexto(d.diasAcumular)}</strong> de su feriado legal ${d.anio}
          para usarlos en ${d.anioDeUso}.</p>`
       : '';
   const pedido = d.fechaInicio
-    ? `<p>Tu solicitud era a partir del ${fechaTexto(d.fechaInicio)} (${nombreMes(Number(d.fechaInicio.slice(5, 7)))}).</p>`
+    ? `<p>Su solicitud era a partir del ${fechaTexto(d.fechaInicio)} (${nombreMes(Number(d.fechaInicio.slice(5, 7)))}).</p>`
     : '';
   // La postergación no queda oficial con las firmas: falta la resolución exenta, que se tramita
   // fuera de la plataforma. Decirlo acá evita que alguien crea que el trámite terminó.
   const rex = d.acepto
     ? `<p>Con esto la <strong>solicitud</strong> queda completa. Para que la postergación quede
-       oficial falta la resolución exenta, que no se tramita en esta plataforma: la hace Gestión de
-       Personas con este formulario como respaldo.</p>`
+       oficial falta la resolución exenta, que no se tramita en esta plataforma: la hace la
+       Subdirección de Gestión y Desarrollo de Personas con este formulario como respaldo.</p>`
     : '';
   // El párrafo de la resolución exenta va al final, después del cierre: si fuera antes, quedaría
   // "falta la REX" seguido de "no hay que enviarlo a ninguna parte", que se leen contradictorios.
   return `
-      <p>Hola ${d.nombre}:</p>
-      <p>Tu solicitud de feriado legal quedó resuelta: <strong>${d.estadoTexto}</strong>.</p>
+      <p>Estimado/a ${d.nombre}:</p>
+      <p>Su solicitud de feriado legal quedó resuelta: <strong>${d.estadoTexto}</strong>.</p>
       ${pedido}
       ${acumula}
       ${cierre(d.codigo)}

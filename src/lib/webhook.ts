@@ -4,7 +4,6 @@ import { correoDe, nombreArchivo, pdfDePermiso, pdfDePostergacion } from './pdf/
 import { permisoPorId, type Permiso } from './permisos.ts';
 import { porId, TEXTO_ESTADO, type Postergacion } from './postergaciones.ts';
 import { fichaDe } from './datos.ts';
-import { nombreTipo } from './reglasPermisos.ts';
 import { CARPETAS, TIPO_EXCEL, anioDe, baseDe, carpetaDe, cargosPorMes, rangoDe } from './integracion.ts';
 import {
   asuntoPermiso,
@@ -16,6 +15,7 @@ import {
   cuerpoPermiso,
   cuerpoPostergacion,
   filaMovimiento,
+  tipoTexto,
 } from './avisos.ts';
 
 /**
@@ -108,7 +108,7 @@ export async function avisarPermisoPendiente(id: number): Promise<boolean> {
       clase: 'permiso',
       codigo: p.codigo,
       tipo: p.tipo,
-      tipoNombre: nombreTipo(p.tipo),
+      tipoNombre: tipoTexto(p.tipo),
       estado: p.estado,
       archivar: false,
       // Solo la jefatura: el funcionario ya sabe que lo pidió, y administración lo verá al cerrarse.
@@ -231,7 +231,7 @@ async function cuerpoDePermiso(p: Permiso) {
   const comun = {
     rutDv: p.ficha.rutTexto,
     nombre: p.ficha.nombre,
-    tipo: tipoExcel ?? nombreTipo(p.tipo),
+    tipo: tipoExcel ?? tipoTexto(p.tipo),
     desde,
     hasta,
     codigo: p.codigo,
@@ -244,7 +244,7 @@ async function cuerpoDePermiso(p: Permiso) {
     archivar: true,
     codigo: p.codigo,
     tipo: p.tipo,
-    tipoNombre: nombreTipo(p.tipo),
+    tipoNombre: tipoTexto(p.tipo),
     estado: p.estado,
     autorizado,
     // El PDF va repetido en el correo y en el archivo a propósito: así los dos pasos del flujo
