@@ -33,12 +33,17 @@ export function nombreMes(mes: number): string {
  */
 export type ClaveCarpeta = 'feriado-legal' | 'con-goce' | 'complementarios' | 'otros' | 'postergacion';
 
+/**
+ * Los nombres van tal como están escritos en la biblioteca, verificados contra el SharePoint el
+ * 23-11-2026. SharePoint no distingue mayúsculas al resolver una ruta, pero sí la palabra: dos de
+ * estos no eran variantes de caja sino nombres distintos de los que yo había supuesto.
+ */
 export const CARPETAS: Record<ClaveCarpeta, string> = {
-  'feriado-legal': 'Feriado legal',
-  'con-goce': 'Con goce de remuneraciones',
-  complementarios: 'Permisos complementarios',
-  otros: 'Otros permisos',
-  postergacion: 'Postergacion de FL',
+  'feriado-legal': 'FERIADO LEGAL',
+  'con-goce': 'CON GOCE DE REMUNERACIONES',
+  complementarios: 'DESCANSO COMPLEMENTARIO',
+  otros: 'OTROS PERMISOS',
+  postergacion: 'POSTERGACION FL',
 };
 
 export function carpetaDe(tipo: TipoPermiso): ClaveCarpeta {

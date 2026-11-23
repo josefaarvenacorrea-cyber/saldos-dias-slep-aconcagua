@@ -294,9 +294,9 @@ test('Aviso de postergación: solo antes y durante el proceso', async () => {
 
 test('Integración: carpeta del SharePoint y base que alimenta cada tipo', async () => {
   const { carpetaDe, baseDe, CARPETAS, TIPO_EXCEL } = await import('../src/lib/integracion.ts');
-  assert.equal(CARPETAS[carpetaDe('feriado')], 'Feriado legal');
-  assert.equal(CARPETAS[carpetaDe('goce')], 'Con goce de remuneraciones');
-  assert.equal(CARPETAS[carpetaDe('compensatorio')], 'Permisos complementarios');
+  assert.equal(CARPETAS[carpetaDe('feriado')], 'FERIADO LEGAL');
+  assert.equal(CARPETAS[carpetaDe('goce')], 'CON GOCE DE REMUNERACIONES');
+  assert.equal(CARPETAS[carpetaDe('compensatorio')], 'DESCANSO COMPLEMENTARIO');
   // El interferiado y los demás permisos se archivan juntos.
   assert.equal(carpetaDe('interferiado'), 'otros');
   assert.equal(carpetaDe('otros'), 'otros');
@@ -717,4 +717,18 @@ test('El descanso complementario se llama igual en todas partes', async () => {
   assert.equal(r.nombreTipo('compensatorio'), 'Descanso Complementario');
   assert.equal(i.TIPO_EXCEL.compensatorio, 'Descanso Complementario');
   assert.equal(a.tipoTexto('compensatorio'), 'Descanso Complementario');
+});
+
+test('Integración: las carpetas son las que existen de verdad en la biblioteca', async () => {
+  const { CARPETAS, carpetaDe } = await import('../src/lib/integracion.ts');
+  // Verificadas contra el SharePoint el 23-11-2026. Dos no eran variantes de caja sino nombres
+  // distintos, y con los que yo había supuesto el paso de archivar habría fallado.
+  assert.equal(CARPETAS.complementarios, 'DESCANSO COMPLEMENTARIO');
+  assert.equal(CARPETAS.postergacion, 'POSTERGACION FL');
+  assert.equal(CARPETAS.otros, 'OTROS PERMISOS');
+  // Los cinco tipos caen en una carpeta que existe.
+  const existentes = new Set(['FERIADO LEGAL', 'CON GOCE DE REMUNERACIONES', 'DESCANSO COMPLEMENTARIO', 'OTROS PERMISOS']);
+  for (const t of ['feriado', 'goce', 'compensatorio', 'interferiado', 'otros'] as const) {
+    assert.ok(existentes.has(CARPETAS[carpetaDe(t)]), `${t} apunta a una carpeta que no existe`);
+  }
 });
