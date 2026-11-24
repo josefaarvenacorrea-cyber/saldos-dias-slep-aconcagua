@@ -732,3 +732,26 @@ test('Integración: las carpetas son las que existen de verdad en la biblioteca'
     assert.ok(existentes.has(CARPETAS[carpetaDe(t)]), `${t} apunta a una carpeta que no existe`);
   }
 });
+
+test('Avisos: las columnas con fórmula de la hoja de detalle van calculadas', async () => {
+  const a = await import('../src/lib/avisos.ts');
+  // El número de serie de Excel: días desde el 30-12-1899. Verificado contra códigos que ya
+  // existen en la planilla.
+  assert.equal(a.serieExcel('2026-09-08'), 46273);
+  assert.equal(a.serieExcel('2026-01-02'), 46024);
+  assert.equal(a.serieExcel(null), null);
+
+  // Código = RUT-DV pegado a ese número, tal como lo arma =CONCATENATE(A2,I2).
+  assert.equal(a.codigoDetalle('11944442-K', '2026-09-08'), '11944442-K46273');
+  assert.equal(a.codigoDetalle('18240756-9', '2026-01-02'), '18240756-946024');
+  assert.equal(a.codigoDetalle('11730119-2', '2026-01-02'), '11730119-246024');
+  // Sin fecha no hay código, igual que la fórmula, que deja la celda vacía.
+  assert.equal(a.codigoDetalle('11944442-K', null), '');
+
+  // La frase de "Texto de uso", igual que =CONCATENATE(G,", ",H," día(s) desde ",N).
+  assert.equal(
+    a.textoDeUso('Con Goce de Remuneraciones', 0.5, '2026-09-08'),
+    'Con Goce de Remuneraciones, 0.5 día(s) desde 08-09-2026',
+  );
+  assert.equal(a.textoDeUso('Feriado Legal', 4, '2026-06-30'), 'Feriado Legal, 4 día(s) desde 30-06-2026');
+});

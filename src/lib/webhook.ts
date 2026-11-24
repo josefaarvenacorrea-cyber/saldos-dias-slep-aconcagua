@@ -14,7 +14,10 @@ import {
   correoPostergacionPropuesta,
   cuerpoPermiso,
   cuerpoPostergacion,
+  codigoDetalle,
+  fechaTexto,
   filaMovimiento,
+  textoDeUso,
   tipoTexto,
 } from './avisos.ts';
 
@@ -269,7 +272,11 @@ async function cuerpoDePermiso(p: Permiso) {
               'N° Dias': p.totalDias,
               'Fecha inicio': desde,
               'Fecha termino': hasta,
+              Código: codigoDetalle(p.ficha.rutTexto, desde),
               Comentarios: p.detalle,
+              'Texto Fecha inicio': fechaTexto(desde),
+              'Texto Fecha Término': fechaTexto(hasta),
+              'Texto de uso': textoDeUso(tipoExcel, p.totalDias, desde),
             }
           : base === 'descansos'
             ? {
@@ -283,6 +290,7 @@ async function cuerpoDePermiso(p: Permiso) {
                 'Hora Fin': p.horaHasta,
                 'Fecha inicio': desde,
                 'Fecha termino': hasta,
+                Código: codigoDetalle(p.ficha.rutTexto, desde),
               }
             : null,
     interferiado:

@@ -54,6 +54,28 @@ function copiaDe(jefaturaCorreo: string | null): string {
   return [jefaturaCorreo, COPIA_ADMINISTRACION].filter(Boolean).join(';');
 }
 
+/**
+ * El número con que Excel guarda una fecha: días desde el 30-12-1899. Las hojas de detalle arman
+ * su columna Código concatenando el RUT-DV con ese número, así que hay que calcularlo igual.
+ */
+export function serieExcel(iso: string | null): number | null {
+  if (!iso) return null;
+  const [a, m, d] = iso.split('-').map(Number);
+  const dias = Date.UTC(a, m - 1, d) - Date.UTC(1899, 11, 30);
+  return Math.round(dias / 86400000);
+}
+
+/** El Código de las hojas de detalle: =CONCATENATE(RUT-DV, Fecha inicio). */
+export function codigoDetalle(rutDv: string, desde: string | null): string {
+  const serie = serieExcel(desde);
+  return serie === null ? '' : `${rutDv}${serie}`;
+}
+
+/** La frase de la columna "Texto de uso": =CONCATENATE(Tipo,", ",N° Dias," día(s) desde ",fecha). */
+export function textoDeUso(tipo: string, dias: number, desde: string | null): string {
+  return `${tipo}, ${dias} día(s) desde ${fechaTexto(desde)}`;
+}
+
 /** "0,5 día", "1 día", "1,5 días": en singular cuando corresponde y con coma decimal. */
 export function diasTexto(dias: number): string {
   const texto = String(dias).replace('.', ',');
