@@ -292,6 +292,16 @@ test('Aviso de postergación: solo antes y durante el proceso', async () => {
   assert.equal(etapaPostergacion('2026-12-12'), null);
 });
 
+test('Postergación en papel: el formulario en Word está entre los descargables', async () => {
+  const { FORMULARIOS, POSTERGACION_EN_LINEA, WORD_POSTERGACION } = await import('../src/lib/postergacion.ts');
+  const archivos = FORMULARIOS.map((x) => x.archivo);
+  // El de permisos está siempre: ese trámite se hace en la plataforma, pero el formulario se sigue ofreciendo.
+  assert.ok(archivos.includes('/formularios/formulario-solicitud-permisos.docx'));
+  // El de postergación aparece solo mientras el trámite no se haga en línea, y al revés.
+  assert.equal(archivos.includes(WORD_POSTERGACION.archivo), !POSTERGACION_EN_LINEA);
+  assert.equal(WORD_POSTERGACION.archivo, '/formularios/formulario-postergacion-feriado-legal.docx');
+});
+
 test('Integración: carpeta del SharePoint y base que alimenta cada tipo', async () => {
   const { carpetaDe, baseDe, CARPETAS, TIPO_EXCEL } = await import('../src/lib/integracion.ts');
   assert.equal(CARPETAS[carpetaDe('feriado')], 'FERIADO LEGAL');

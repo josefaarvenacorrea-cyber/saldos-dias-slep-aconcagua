@@ -7,7 +7,7 @@ import { RespuestaJefatura } from '@/componentes/RespuestaJefatura';
 import { RespuestaPermiso } from '@/componentes/RespuestaPermiso';
 import { fechaCorta, fechaHoraChile } from '@/lib/fechas';
 import { firmaDe } from '@/lib/firmas';
-import { PROCESO_POSTERGACION } from '@/lib/postergacion';
+import { POSTERGACION_EN_LINEA, PROCESO_POSTERGACION } from '@/lib/postergacion';
 import { permisosPendientesDe, TEXTO_ESTADO_PERMISO } from '@/lib/permisos';
 import { pendientesDeJefatura, respondidasPorJefatura, TEXTO_ESTADO } from '@/lib/postergaciones';
 import { horasTexto, nombreTipo } from '@/lib/reglasPermisos';
@@ -23,13 +23,15 @@ export default async function Autorizaciones() {
   if (u.rol === 'admin') redirect('/admin');
 
   const proc = PROCESO_POSTERGACION;
-  const [pendientes, respondidas, firma, enlaces, permisos] = await Promise.all([
+  const [enTramite, respondidas, firma, enlaces, permisos] = await Promise.all([
     pendientesDeJefatura(u.rut ?? ''),
     respondidasPorJefatura(u.rut ?? ''),
     firmaDe(u.id),
     enlacesDe(u.rut),
     permisosPendientesDe(u.rut ?? ''),
   ]);
+  // Mientras la postergación se tramite en papel no se firma aquí, así que no se ofrece para responder.
+  const pendientes = POSTERGACION_EN_LINEA ? enTramite : [];
   const totalPendiente = pendientes.length + permisos.length;
 
   const periodoDe = (inicio: string | null, anio: number) =>
@@ -56,9 +58,16 @@ export default async function Autorizaciones() {
           {!totalPendiente ? (
             <Alerta tipo="info" titulo="No tienes solicitudes pendientes">
               <p>
-                Cuando alguien de tu equipo pida un permiso o solicite postergar su feriado legal de {proc.anioAPostergar},
-                aparecerá aquí para que la respondas.
+                {POSTERGACION_EN_LINEA
+                  ? `Cuando alguien de tu equipo pida un permiso o solicite postergar su feriado legal de ${proc.anioAPostergar}, aparecerá aquí para que la respondas.`
+                  : 'Cuando alguien de tu equipo pida un permiso, aparecerá aquí para que lo respondas.'}
               </p>
+              {POSTERGACION_EN_LINEA ? null : (
+                <p>
+                  La postergación de feriado legal de {proc.anioAPostergar} no se tramita en la plataforma: se firma el
+                  formulario en Word que te va a hacer llegar la persona que la pide.
+                </p>
+              )}
             </Alerta>
           ) : null}
 

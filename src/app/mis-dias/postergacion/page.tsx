@@ -10,8 +10,14 @@ import { fechaCorta, hoyChile } from '@/lib/fechas';
 import { feriadoPorVencer, feriadoPostergable } from '@/lib/feriado';
 import { firmaDe, firmaPorRut } from '@/lib/firmas';
 import { jefaturaDe } from '@/lib/jefaturas';
-import { etapaPostergacion, PROCESO_POSTERGACION } from '@/lib/postergacion';
-import { solicitudDe } from '@/lib/postergaciones';
+import {
+  etapaPostergacion,
+  POSTERGACION_EN_LINEA,
+  PROCESO_POSTERGACION,
+  WORD_POSTERGACION,
+} from '@/lib/postergacion';
+import { solicitudDe, type Postergacion as Solicitud } from '@/lib/postergaciones';
+import { CORREO_CONTACTO } from '@/componentes/Marco';
 import * as f from '@/lib/formato';
 import { enlacesDe } from '@/lib/enlaces';
 import { requerirUsuario } from '@/lib/sesion';
@@ -31,6 +37,111 @@ function Ruta({ paso }: { paso: 1 | 2 | 3 | 4 }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+/** Cuántos días se pueden postergar y cuántos no, para saber qué escribir en el formulario. */
+function Saldos({ postergable, porVencer, saldoTotal }: { postergable: number; porVencer: number; saldoTotal: number }) {
+  const proc = PROCESO_POSTERGACION;
+  return (
+    <div className="grilla grilla-2" style={{ marginBottom: 20 }}>
+      <div className="tarjeta">
+        <h3 style={{ marginTop: 0, marginBottom: 4 }}>Puedes postergar</h3>
+        <p className="saldo-cifra" style={{ margin: 0 }}>
+          {f.numero(postergable)}
+          <small>días</small>
+        </p>
+        <p className="sub" style={{ marginBottom: 0 }}>
+          Son los del año {proc.anioAPostergar}. Tu saldo total de feriado legal es de {f.dias(saldoTotal)}.
+        </p>
+      </div>
+      <div className="tarjeta">
+        <h3 style={{ marginTop: 0, marginBottom: 4 }}>No se pueden postergar</h3>
+        <p className="saldo-cifra" style={{ margin: 0 }}>
+          {f.numero(porVencer)}
+          <small>días</small>
+        </p>
+        <p className="sub" style={{ marginBottom: 0 }}>
+          Vienen de años anteriores. Tómalos antes del 31 de diciembre para no perderlos.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** Los cuatro pasos del formulario en papel, con el enlace para descargarlo. */
+function TramiteEnPapel() {
+  const proc = PROCESO_POSTERGACION;
+  const w = WORD_POSTERGACION;
+  return (
+    <section className="tarjeta" style={{ marginBottom: 24 }}>
+      <h2 style={{ marginTop: 0 }}>Cómo se hace este trámite</h2>
+      <p className="sub">
+        El plazo es entre el {fechaCorta(proc.inicio)} y el {fechaCorta(proc.fin)}.
+      </p>
+      <ol className="lista-pasos">
+        <li>
+          <strong>Descarga el formulario y llena la sección I:</strong> pides tu feriado legal de {proc.anioAPostergar} y
+          firmas. Este paso es obligatorio aunque quieras postergar, porque la acumulación del artículo N°104 solo
+          procede si el feriado fue denegado por razones de buen servicio.
+        </li>
+        <li>
+          <strong>Tu jefatura responde</strong> y firma la sección II. Si deniega el feriado por razones de buen
+          servicio, propone postergarlo.
+        </li>
+        <li>
+          <strong>Vuelve a ti:</strong> aceptas la postergación, declaras cuántos días acumulas para {proc.anioDestino} y
+          firmas la sección III.
+        </li>
+        <li>
+          <strong>Envíalo firmado</strong> a <a href={`mailto:${CORREO_CONTACTO}`}>{CORREO_CONTACTO}</a> dentro del
+          plazo, para que quede registrado.
+        </li>
+      </ol>
+      <p style={{ marginBottom: 0 }}>
+        <a className="boton" href={w.archivo} download>
+          Descargar el formulario (Word, {w.peso})
+        </a>
+      </p>
+    </section>
+  );
+}
+
+/** Qué decirle a quien alcanzó a iniciar una solicitud en la plataforma antes de que se cerrara. */
+function AvisoSolicitudEnPapel({ s }: { s: Solicitud }) {
+  const proc = PROCESO_POSTERGACION;
+  if (s.estado === 'pendiente_jefatura' || s.estado === 'pendiente_funcionario') {
+    return (
+      <Alerta tipo="advertencia" titulo="La solicitud que iniciaste aquí quedó detenida">
+        <p>
+          El trámite volvió a hacerse en papel, así que esta solicitud ya no se puede seguir firmando en la plataforma.
+          Descarga el formulario, complétalo y envíalo firmado a <a href={`mailto:${CORREO_CONTACTO}`}>{CORREO_CONTACTO}</a>.
+          Lo que firmaste aquí queda abajo como respaldo.
+        </p>
+      </Alerta>
+    );
+  }
+  if (s.estado === 'completa') {
+    return (
+      <Alerta tipo="exito" titulo="Tu postergación ya quedó registrada">
+        <p>
+          Solicitaste acumular {f.dias(s.diasAcumular ?? 0)} para {proc.anioDestino}. El documento de abajo es tu
+          respaldo y se puede verificar con el código {s.codigo}. No tienes que hacer nada más.
+        </p>
+      </Alerta>
+    );
+  }
+  if (s.estado === 'sin_postergacion') {
+    return (
+      <Alerta tipo="info" titulo="Tu jefatura autorizó el feriado">
+        <p>No hay postergación que tramitar: puedes tomar tus días dentro del año.</p>
+      </Alerta>
+    );
+  }
+  return (
+    <Alerta tipo="info" titulo="Desististe de la postergación">
+      <p>Tus días pendientes tienen que usarse antes del 31 de diciembre de {s.anio}.</p>
+    </Alerta>
   );
 }
 
@@ -65,6 +176,32 @@ export default async function Postergacion() {
       </div>
     </Marco>
   );
+
+  // ---- Mientras el trámite se haga en papel: se explica, se descarga el Word y nada se firma aquí ----
+  if (!POSTERGACION_EN_LINEA) {
+    const firmaJefatura = solicitud ? await firmaPorRut(solicitud.jefaturaRut) : null;
+    const cerrada = solicitud ? solicitud.estado !== 'pendiente_jefatura' && solicitud.estado !== 'pendiente_funcionario' : false;
+    return marco(
+      <>
+        {solicitud ? <AvisoSolicitudEnPapel s={solicitud} /> : null}
+        {cerrada ? null : <TramiteEnPapel />}
+        {fl && !cerrada ? <Saldos postergable={postergable} porVencer={porVencer} saldoTotal={fl.saldo} /> : null}
+        {solicitud ? (
+          <>
+            <h2>{cerrada ? 'Tu formulario' : 'Lo que firmaste en la plataforma'}</h2>
+            <DocumentoPostergacion
+              p={solicitud}
+              firmas={{
+                solicitud: miFirma,
+                jefatura: firmaJefatura,
+                aceptacion: solicitud.firmaAceptacion ? miFirma : null,
+              }}
+            />
+          </>
+        ) : null}
+      </>,
+    );
+  }
 
   // ---- El documento, cuando ya hay una solicitud ----
   if (solicitud) {
@@ -212,28 +349,7 @@ export default async function Postergacion() {
         </ol>
       </section>
 
-      <div className="grilla grilla-2" style={{ marginBottom: 20 }}>
-        <div className="tarjeta">
-          <h3 style={{ marginTop: 0, marginBottom: 4 }}>Puedes postergar</h3>
-          <p className="saldo-cifra" style={{ margin: 0 }}>
-            {f.numero(postergable)}
-            <small>días</small>
-          </p>
-          <p className="sub" style={{ marginBottom: 0 }}>
-            Son los del año {proc.anioAPostergar}. Tu saldo total de feriado legal es de {f.dias(fl.saldo)}.
-          </p>
-        </div>
-        <div className="tarjeta">
-          <h3 style={{ marginTop: 0, marginBottom: 4 }}>No se pueden postergar</h3>
-          <p className="saldo-cifra" style={{ margin: 0 }}>
-            {f.numero(porVencer)}
-            <small>días</small>
-          </p>
-          <p className="sub" style={{ marginBottom: 0 }}>
-            Vienen de años anteriores. Tómalos antes del 31 de diciembre para no perderlos.
-          </p>
-        </div>
-      </div>
+      <Saldos postergable={postergable} porVencer={porVencer} saldoTotal={fl.saldo} />
 
       {!miFirma ? (
         <Alerta tipo="advertencia" titulo="Primero guarda tu firma">

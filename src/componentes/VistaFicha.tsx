@@ -2,7 +2,13 @@ import Link from 'next/link';
 import type { Ficha } from '@/lib/datos';
 import { anioActualChile, fechaCorta, fechaHoraChile, hoyChile, MESES } from '@/lib/fechas';
 import { feriadoPorVencer } from '@/lib/feriado';
-import { etapaPostergacion, FORMULARIOS, PROCESO_POSTERGACION, type EtapaPostergacion } from '@/lib/postergacion';
+import {
+  etapaPostergacion,
+  FORMULARIOS,
+  POSTERGACION_EN_LINEA,
+  PROCESO_POSTERGACION,
+  type EtapaPostergacion,
+} from '@/lib/postergacion';
 import * as f from '@/lib/formato';
 import { formatearRut } from '@/lib/rut';
 import type { Solicitud, TipoSolicitud } from '@/lib/tipos';
@@ -100,8 +106,10 @@ function AvisoPostergacion({ etapa }: { etapa: EtapaPostergacion }) {
     >
       <p>
         {etapa === 'abierto' ? 'Hasta el ' + diaYMes(p.fin) : `Entre el ${diaYMes(p.inicio)} y el ${diaYMes(p.fin)}`} puedes solicitar postergar tus días de feriado legal de{' '}
-        {p.anioAPostergar} para {p.anioDestino}. El trámite se hace completo aquí en la plataforma: tú lo inicias, lo
-        responde tu jefatura y vuelve a ti para que lo aceptes. No hay que imprimir ni enviar nada.
+        {p.anioAPostergar} para {p.anioDestino}.{' '}
+        {POSTERGACION_EN_LINEA
+          ? 'El trámite se hace completo aquí en la plataforma: tú lo inicias, lo responde tu jefatura y vuelve a ti para que lo aceptes. No hay que imprimir ni enviar nada.'
+          : `El trámite se hace en papel: descarga el formulario en Word, fírmalo, pídele a tu jefatura que firme la sección II y envíalo a ${CORREO_CONTACTO}.`}
       </p>
       <p>
         <strong>
@@ -110,7 +118,11 @@ function AvisoPostergacion({ etapa }: { etapa: EtapaPostergacion }) {
       </p>
       <p>
         <Link className="boton boton-chico" href="/mis-dias/postergacion">
-          {etapa === 'abierto' ? 'Postergar mi feriado legal' : 'Ver cómo funciona el trámite'}
+          {!POSTERGACION_EN_LINEA
+            ? 'Ver cómo postergar mi feriado legal'
+            : etapa === 'abierto'
+              ? 'Postergar mi feriado legal'
+              : 'Ver cómo funciona el trámite'}
         </Link>
       </p>
     </Alerta>

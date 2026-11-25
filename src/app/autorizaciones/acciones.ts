@@ -5,6 +5,7 @@ import { actoDe } from '@/lib/acto';
 import { fichaDe } from '@/lib/datos';
 import { firmaDe } from '@/lib/firmas';
 import { permisoPorId, responderPermiso } from '@/lib/permisos';
+import { POSTERGACION_EN_LINEA } from '@/lib/postergacion';
 import { porId, responderJefatura } from '@/lib/postergaciones';
 import { avisarPermiso, avisarPostergacion, avisarPostergacionPropuesta } from '@/lib/webhook';
 import { formatearRut } from '@/lib/rut';
@@ -16,6 +17,13 @@ export interface EstadoRespuesta {
 
 /** Sección II: la jefatura autoriza el feriado o lo deniega por buen servicio, y firma. */
 export async function responder(_: EstadoRespuesta, form: FormData): Promise<EstadoRespuesta> {
+  if (!POSTERGACION_EN_LINEA) {
+    return {
+      error:
+        'La postergación de feriado legal ya no se tramita en la plataforma: ahora se firma el formulario en Word. Los permisos se siguen autorizando aquí.',
+    };
+  }
+
   const u = await requerirUsuario();
   if (!u.rut) return { error: 'Tu cuenta no tiene RUT asociado.' };
 

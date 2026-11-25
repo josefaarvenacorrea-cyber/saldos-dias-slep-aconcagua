@@ -4,7 +4,7 @@ import { Alerta } from '@/componentes/Alerta';
 import { fechaCorta, fechaHoraChile } from '@/lib/fechas';
 import { mapaJefaturas } from '@/lib/jefaturas';
 import { TEXTO_MOTIVO } from '@/lib/nombres';
-import { PROCESO_POSTERGACION } from '@/lib/postergacion';
+import { POSTERGACION_EN_LINEA, PROCESO_POSTERGACION } from '@/lib/postergacion';
 import { TEXTO_ESTADO, todas } from '@/lib/postergaciones';
 import * as f from '@/lib/formato';
 import { formatearRut } from '@/lib/rut';
@@ -41,7 +41,10 @@ export default async function Postergaciones() {
     <div className="seccion">
       <h1>Postergaciones de feriado legal {proc.anioAPostergar} → {proc.anioDestino}</h1>
       <p className="texto-grande">
-        Trámite completo dentro de la plataforma. El proceso va del {fechaCorta(proc.inicio)} al {fechaCorta(proc.fin)}.
+        {POSTERGACION_EN_LINEA
+          ? 'Trámite completo dentro de la plataforma.'
+          : 'El trámite se hace en papel: el formulario se descarga en Word, se firma y llega por correo. Aquí quedan solo las solicitudes que alcanzaron a iniciarse en la plataforma.'}{' '}
+        El proceso va del {fechaCorta(proc.inicio)} al {fechaCorta(proc.fin)}.
       </p>
 
       <div className="cifras seccion">
@@ -67,7 +70,7 @@ export default async function Postergaciones() {
         <Alerta tipo="advertencia" titulo={`${sinJefatura.length} personas sin jefatura identificada`}>
           <p>
             No pude emparejar lo que dice la columna JEFATURA de la Dotación con una persona, así que estas personas no
-            pueden iniciar el trámite. Corrige el nombre en la Dotación y vuelve a subirla, o asígnale la jefatura a mano
+            pueden pedir permisos en la plataforma. Corrige el nombre en la Dotación y vuelve a subirla, o asígnale la jefatura a mano
             desde <Link href="/admin/funcionarios">Funcionarios</Link>.
           </p>
           <details className="desplegable">
@@ -100,7 +103,11 @@ export default async function Postergaciones() {
 
       {!solicitudes.length ? (
         <Alerta tipo="info" titulo="Todavía no hay solicitudes">
-          <p>Aquí van a aparecer a medida que los funcionarios inicien el trámite.</p>
+          <p>
+            {POSTERGACION_EN_LINEA
+              ? 'Aquí van a aparecer a medida que los funcionarios inicien el trámite.'
+              : 'Nadie alcanzó a iniciar el trámite en la plataforma, así que todas las postergaciones de este año llegan en papel.'}
+          </p>
         </Alerta>
       ) : (
         <table className="tabla">

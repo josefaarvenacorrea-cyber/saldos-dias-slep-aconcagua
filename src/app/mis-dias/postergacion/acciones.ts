@@ -6,7 +6,7 @@ import { fichaDe } from '@/lib/datos';
 import { feriadoPorVencer, feriadoPostergable } from '@/lib/feriado';
 import { firmaDe } from '@/lib/firmas';
 import { jefaturaDe } from '@/lib/jefaturas';
-import { etapaPostergacion, PROCESO_POSTERGACION } from '@/lib/postergacion';
+import { etapaPostergacion, POSTERGACION_EN_LINEA, PROCESO_POSTERGACION } from '@/lib/postergacion';
 import { crearSolicitud, responderFuncionario, solicitudDe } from '@/lib/postergaciones';
 import { avisarPostergacion, avisarPostergacionPendiente } from '@/lib/webhook';
 import { hoyChile } from '@/lib/fechas';
@@ -17,6 +17,13 @@ export interface EstadoPaso {
   error?: string;
 }
 
+/**
+ * El trámite se hace en papel: la plataforma no firma ni registra postergaciones. Va en las dos
+ * acciones porque una pestaña abierta de antes todavía puede enviar el formulario.
+ */
+const EN_PAPEL =
+  'La postergación ya no se tramita en la plataforma. Descarga el formulario en Word desde Mis días, fírmalo y envíalo por correo a administracion.personas@slepaconcagua.gob.cl.';
+
 /** Redondea a medio día, que es la fracción mínima con que se registran los días. */
 function mediosDias(valor: FormDataEntryValue | null): number {
   const n = Number(String(valor ?? '').replace(',', '.'));
@@ -25,6 +32,8 @@ function mediosDias(valor: FormDataEntryValue | null): number {
 
 /** Sección I: el funcionario solicita su feriado y firma. */
 export async function solicitar(_: EstadoPaso, form: FormData): Promise<EstadoPaso> {
+  if (!POSTERGACION_EN_LINEA) return { error: EN_PAPEL };
+
   const u = await requerirUsuario();
   if (u.rol !== 'funcionario' || !u.rut) return { error: 'Solo los funcionarios pueden solicitar la postergación.' };
   if (etapaPostergacion(hoyChile()) !== 'abierto') return { error: 'El proceso de postergación no está abierto.' };
@@ -89,6 +98,8 @@ export async function solicitar(_: EstadoPaso, form: FormData): Promise<EstadoPa
 
 /** Sección III: el funcionario acepta la postergación y declara cuántos días acumula, o desiste. */
 export async function aceptar(_: EstadoPaso, form: FormData): Promise<EstadoPaso> {
+  if (!POSTERGACION_EN_LINEA) return { error: EN_PAPEL };
+
   const u = await requerirUsuario();
   if (u.rol !== 'funcionario' || !u.rut) return { error: 'Solo los funcionarios pueden responder esta solicitud.' };
 
